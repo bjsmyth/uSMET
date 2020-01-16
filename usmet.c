@@ -78,6 +78,7 @@ static SixAxis compFilter;
 void gpioMPU9150DataReady(unsigned int index) {
     GPIO_clearInt(MPU9150_INT_PIN);
     Semaphore_post(imuDataReady);
+
 }
 
 /*
