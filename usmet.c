@@ -46,6 +46,7 @@
 #include <ti/drivers/GPIO.h>
 #include <ti/drivers/I2C.h>
 #include <ti/drivers/SDSPI.h>
+#include <ti/drivers/PWM.h>
 
 #include <ti/mw/fatfs/ff.h>
 
@@ -63,7 +64,7 @@
 #include "MPU9150.h"
 #include "six_axis_comp_filter.h"
 
-#define TASKSTACKSIZE       2048
+#define TASKSTACKSIZE       4096
 
 
 Task_Struct task0Struct;
@@ -71,6 +72,9 @@ Char task0Stack[512];
 
 Task_Struct task1Struct;
 Char task1Stack[TASKSTACKSIZE];
+
+Task_Struct task2Struct;
+Char task2Stack[512];
 
 static MPU9150_Handle mpu;
 static SixAxis compFilter;
@@ -95,7 +99,7 @@ Void taskFxn(UArg arg0, UArg arg1)
     }
     Task_sleep(100); //Wait for IMU to be ready
 
-    CompInit(&compFilter, 0.05f, 2.0f);
+    CompInit(&compFilter, 0.05f, 0.5f);
 
     //Sample once
     if(!MPU9150_read(mpu)) {
@@ -162,13 +166,21 @@ Void printFxn(UArg arg0, UArg arg1) {
 
     char accelStr[100];
     uint32_t length;
-    float roll;
-    Task_sleep(1000);
+    float roll, rollOffset;
+    Task_sleep(5000);
+
+    CompAnglesGet(&compFilter, NULL, &rollOffset); //Offset
+    GPIO_write(Board_LED0, Board_LED_OFF);
+    GPIO_write(Board_LED1, Board_LED_ON);
     for(;;) {
         MPU9150_getGyroFloat(mpu, &gyro);
         MPU9150_getAccelFloat(mpu, &accel);
         CompAnglesGet(&compFilter, NULL, &roll);
+        roll -= rollOffset;
         roll = CompRadiansToDegrees(roll);
+        if(roll >= 180.0f) {
+            roll -= 360.0f;
+        }
 
         length = sprintf(accelStr, "%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f\n",
                          accel.xFloat, accel.yFloat, accel.zFloat,
@@ -183,19 +195,61 @@ Void printFxn(UArg arg0, UArg arg1) {
     }
 }
 
+void pwmLEDFxn(UArg arg0, UArg arg1)
+{
+    PWM_Handle pwm1;
+    PWM_Handle pwm2 = NULL;
+    PWM_Params params;
+    uint16_t   pwmPeriod = 3000;      // Period and duty in microseconds
+    uint16_t   duty = 0;
+    uint16_t   dutyInc = 100;
+
+    PWM_Params_init(&params);
+    params.period = pwmPeriod;
+    pwm1 = PWM_open(Board_PWM0, &params);
+    if (pwm1 == NULL) {
+        System_abort("Board_PWM0 did not open");
+    }
+
+    if (Board_PWM1 != Board_PWM0) {
+        params.polarity = PWM_POL_ACTIVE_LOW;
+        pwm2 = PWM_open(Board_PWM1, &params);
+        if (pwm2 == NULL) {
+            System_abort("Board_PWM1 did not open");
+        }
+    }
+
+    /* Loop forever incrementing the PWM duty */
+    while (1) {
+        PWM_setDuty(pwm1, duty);
+
+        if (pwm2) {
+            PWM_setDuty(pwm2, duty);
+        }
+
+        duty = (duty + dutyInc);
+        if (duty == pwmPeriod || (!duty)) {
+            dutyInc = - dutyInc;
+        }
+
+        Task_sleep((UInt) 100);
+    }
+}
+
 
 /*
  *  ======== main ========
  */
 int main(void)
 {
-    Task_Params taskParams, task1;
+    Task_Params taskParams, task1, task2;
 
     /* Call board init functions */
     Board_initGeneral();
     Board_initGPIO();
     Board_initSDSPI();
     Board_initI2C();
+    Board_initPWM();
 
 
 
@@ -204,13 +258,19 @@ int main(void)
     taskParams.stackSize = 512;
     taskParams.stack = &task0Stack;
     taskParams.priority = 15; //Highest priority, must read on time
-    //Task_construct(&task0Struct, (Task_FuncPtr)taskFxn, &taskParams, NULL);
+    Task_construct(&task0Struct, (Task_FuncPtr)taskFxn, &taskParams, NULL);
 
     Task_Params_init(&task1);
     task1.stackSize = TASKSTACKSIZE;
     task1.stack = &task1Stack;
     task1.priority = 1;
     Task_construct(&task1Struct, (Task_FuncPtr)printFxn, &task1, NULL);
+
+    Task_Params_init(&task2);
+    task1.stackSize = 512;
+    task1.stack = &task2Stack;
+    task1.priority = 2;
+    Task_construct(&task2Struct, (Task_FuncPtr)pwmLEDFxn, &task2, NULL);
 
     /* Turn on user LED */
     GPIO_write(Board_LED0, Board_LED_ON);

@@ -163,7 +163,7 @@ GPIO_PinConfig gpioPinConfigs[] = {
     /* EK_TM4C123GXL_GPIO_SW2 */
     GPIOTiva_PF_0 | GPIO_CFG_IN_PU | GPIO_CFG_IN_INT_RISING,
     /* MPU9150_INT_PIN */
-    GPIOTiva_PE_3 | GPIO_CFG_IN_PD | GPIO_CFG_IN_INT_RISING,
+    GPIOTiva_PE_3 | GPIO_CFG_IN_INT_FALLING,
 
     /* Output pins */
     /* EK_TM4C123GXL_LED_RED */
@@ -309,12 +309,12 @@ PWMTiva_Object pwmTivaObjects[EK_TM4C123GXL_PWMCOUNT];
 const PWMTiva_HWAttrs pwmTivaHWAttrs[EK_TM4C123GXL_PWMCOUNT] = {
     {
         .baseAddr = PWM1_BASE,
-        .pwmOutput = PWM_OUT_6,
+        .pwmOutput = PWM_OUT_2,
         .pwmGenOpts = PWM_GEN_MODE_DOWN | PWM_GEN_MODE_DBG_RUN
     },
     {
         .baseAddr = PWM1_BASE,
-        .pwmOutput = PWM_OUT_7,
+        .pwmOutput = PWM_OUT_3,
         .pwmGenOpts = PWM_GEN_MODE_DOWN | PWM_GEN_MODE_DBG_RUN
     }
 };
@@ -345,9 +345,9 @@ void EK_TM4C123GXL_initPWM(void)
      * Enable PWM output on GPIO pins.  Board_LED1 and Board_LED2 are now
      * controlled by PWM peripheral - Do not use GPIO APIs.
      */
-    GPIOPinConfigure(GPIO_PF2_M1PWM6);
-    GPIOPinConfigure(GPIO_PF3_M1PWM7);
-    GPIOPinTypePWM(GPIO_PORTF_BASE, GPIO_PIN_2 |GPIO_PIN_3);
+    GPIOPinConfigure(GPIO_PE4_M1PWM2);
+    GPIOPinConfigure(GPIO_PE5_M1PWM3);
+    GPIOPinTypePWM(GPIO_PORTE_BASE, GPIO_PIN_4 | GPIO_PIN_5);
 
     PWM_init();
 }

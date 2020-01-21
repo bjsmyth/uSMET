@@ -84,8 +84,8 @@ typedef enum EK_TM4C123GXL_I2CName {
  *  @brief  Enum of PWM names on the EK_TM4C123GXL dev board
  */
 typedef enum EK_TM4C123GXL_PWMName {
-    EK_TM4C123GXL_PWM6 = 0,
-    EK_TM4C123GXL_PWM7,
+    EK_TM4C123GXL_PWM2 = 0,
+    EK_TM4C123GXL_PWM3,
 
     EK_TM4C123GXL_PWMCOUNT
 } EK_TM4C123GXL_PWMName;

@@ -69,11 +69,6 @@ typedef struct MPU9150_Data {
 			float   temperatureFFloat;
 		};
 	};
-    struct {
-        float   pitch;
-        float   roll;
-        float   yaw;
-    };
 } MPU9150_Data;
 
 typedef struct MPU9150_Object {
@@ -146,7 +141,6 @@ bool MPU9150_getMagnetoRaw(MPU9150_Handle handle, MPU9150_Data *data);
  */
 bool MPU9150_getMagnetoFloat(MPU9150_Handle handle, MPU9150_Data *data);
 
-bool MPU9150_getRoll(MPU9150_Handle handle, MPU9150_Data *data);
 /*
  *  ======== MPU9150_getTemperatureRaw ========
  *  Function returns the raw Temperature register values.

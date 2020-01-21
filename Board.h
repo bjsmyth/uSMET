@@ -65,8 +65,8 @@ extern "C" {
 #define Board_I2C_NFC               EK_TM4C123GXL_I2C3
 #define Board_I2C_TPL0401           EK_TM4C123GXL_I2C3
 
-#define Board_PWM0                  EK_TM4C123GXL_PWM6
-#define Board_PWM1                  EK_TM4C123GXL_PWM7
+#define Board_PWM0                  EK_TM4C123GXL_PWM2
+#define Board_PWM1                  EK_TM4C123GXL_PWM3
 
 #define Board_SDSPI0                EK_TM4C123GXL_SDSPI0
 

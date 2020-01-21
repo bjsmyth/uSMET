@@ -383,15 +383,6 @@ bool MPU9150_getMagnetoRaw(MPU9150_Handle handle, MPU9150_Data *data)
     return (false);
 }
 
-bool MPU9150_getRoll(MPU9150_Handle handle, MPU9150_Data *data)
-{
-    MPU9150_getAccelFloat(handle, data);
-
-    data->roll = atan2f(data->yFloat, data->zFloat) * 180/M_PI;
-
-    return true;
-}
-
 /*
  *  ======== MPU9150_getMagnetoFloat ========
  */
