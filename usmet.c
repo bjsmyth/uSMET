@@ -60,6 +60,7 @@
 
 /* Board Header files */
 #include "Board.h"
+#include "USBCDCD_LoggerIdle.h"
 
 #include "MPU9150.h"
 #include "six_axis_comp_filter.h"
@@ -251,6 +252,7 @@ int main(void)
     Board_initSDSPI();
     Board_initI2C();
     Board_initPWM();
+    Board_initUSB(Board_USBDEVICE);
 
 
 
@@ -279,6 +281,8 @@ int main(void)
     GPIO_write(Board_LED0, Board_LED_ON);
     GPIO_setCallback(MPU9150_INT_PIN, gpioMPU9150DataReady);
     GPIO_enableInt(MPU9150_INT_PIN);
+
+    USBCDCD_init();
 
     System_printf("Starting the I2C example\nSystem provider is set to SysMin."
                   " Halt the target to view any SysMin contents in ROV.\n");
