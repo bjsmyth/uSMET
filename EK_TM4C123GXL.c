@@ -65,7 +65,7 @@
 #include "EK_TM4C123GXL.h"
 
 #ifndef TI_DRIVERS_UART_DMA
-#define TI_DRIVERS_UART_DMA 0
+#define TI_DRIVERS_UART_DMA 1
 #endif
 
 /*

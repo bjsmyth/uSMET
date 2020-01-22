@@ -63,6 +63,7 @@
 
 #include "MPU9150.h"
 #include "six_axis_comp_filter.h"
+#include "vesc_uart/comm_uart.h"
 
 #define TASKSTACKSIZE       4096
 
@@ -271,6 +272,8 @@ int main(void)
     task1.stack = &task2Stack;
     task1.priority = 2;
     Task_construct(&task2Struct, (Task_FuncPtr)pwmLEDFxn, &task2, NULL);
+
+    comm_uart_init();
 
     /* Turn on user LED */
     GPIO_write(Board_LED0, Board_LED_ON);
