@@ -22,6 +22,9 @@
  *      Author: benjamin
  */
 
+#include <xdc/runtime/Error.h>
+#include <ti/sysbios/gates/GateMutex.h>
+
 #include <string.h>
 #include "packet.h"
 #include "crc.h"
@@ -37,6 +40,7 @@ typedef struct {
 	unsigned int rx_data_ptr;
 	unsigned char crc_low;
 	unsigned char crc_high;
+	GateMutex_Handle dataAccess;
 } PACKET_STATE_t;
 
 static PACKET_STATE_t handler_states[PACKET_HANDLERS];
@@ -45,15 +49,22 @@ void packet_init(void (*s_func)(unsigned char *data, unsigned int len),
 		void (*p_func)(unsigned char *data, unsigned int len), int handler_num) {
 	handler_states[handler_num].send_func = s_func;
 	handler_states[handler_num].process_func = p_func;
+
+	Error_Block eb;
+	Error_init(&eb);
+    handler_states[handler_num].dataAccess = GateMutex_create(NULL, &eb);
+
 }
 
 void packet_send_packet(unsigned char *data, unsigned int len, int handler_num) {
+    unsigned int key;
 	if (len > PACKET_MAX_PL_LEN) {
 		return;
 	}
 
 	int b_ind = 0;
 
+	key = GateMutex_enter(handler_states[handler_num].dataAccess);
 	if (len <= 256) {
 		handler_states[handler_num].tx_buffer[b_ind++] = 2;
 		handler_states[handler_num].tx_buffer[b_ind++] = len;
@@ -74,6 +85,8 @@ void packet_send_packet(unsigned char *data, unsigned int len, int handler_num) 
 	if (handler_states[handler_num].send_func) {
 		handler_states[handler_num].send_func(handler_states[handler_num].tx_buffer, b_ind);
 	}
+
+	GateMutex_leave(handler_states[handler_num].dataAccess, key);
 }
 
 /**
@@ -81,16 +94,23 @@ void packet_send_packet(unsigned char *data, unsigned int len, int handler_num) 
  */
 void packet_timerfunc(void) {
 	int i = 0;
+	unsigned int key;
 	for (i = 0;i < PACKET_HANDLERS;i++) {
+	    key = GateMutex_enter(handler_states[i].dataAccess);
+
 		if (handler_states[i].rx_timeout) {
 			handler_states[i].rx_timeout--;
 		} else {
 			handler_states[i].rx_state = 0;
 		}
+
+	    GateMutex_leave(handler_states[i].dataAccess, key);
 	}
+
 }
 
 void packet_process_byte(uint8_t rx_data, int handler_num) {
+    unsigned int key = GateMutex_enter(handler_states[handler_num].dataAccess);
 	switch (handler_states[handler_num].rx_state) {
 	case 0:
 		if (rx_data == 2) {
@@ -166,4 +186,6 @@ void packet_process_byte(uint8_t rx_data, int handler_num) {
 		handler_states[handler_num].rx_state = 0;
 		break;
 	}
+
+	GateMutex_leave(handler_states[handler_num].dataAccess, key);
 }

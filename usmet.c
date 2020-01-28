@@ -60,13 +60,13 @@
 
 /* Board Header files */
 #include "Board.h"
-#include "USBCDCD_LoggerIdle.h"
 
 #include "MPU9150.h"
 #include "six_axis_comp_filter.h"
 #include "vesc_uart/comm_uart.h"
+#include "vesc_uart/bldc_interface.h"
 
-#define TASKSTACKSIZE       4096
+#define TASKSTACKSIZE       3072
 
 
 Task_Struct task0Struct;
@@ -101,7 +101,7 @@ Void taskFxn(UArg arg0, UArg arg1)
     }
     Task_sleep(100); //Wait for IMU to be ready
 
-    CompInit(&compFilter, 0.05f, 0.5f);
+    CompInit(&compFilter, 0.05f, 2.0f);
 
     //Sample once
     if(!MPU9150_read(mpu)) {
@@ -150,7 +150,7 @@ Void printFxn(UArg arg0, UArg arg1) {
     }
     unsigned int fileNum = 0;
     FRESULT res;
-    do {
+    do { //Try to open a file on the SD card
         sprintf(outputfile, "0:log_%u.csv", fileNum++);
         res = f_open(&src, outputfile, FA_CREATE_NEW | FA_WRITE);
         if(res == FR_NOT_READY) {
@@ -188,23 +188,24 @@ Void printFxn(UArg arg0, UArg arg1) {
                          accel.xFloat, accel.yFloat, accel.zFloat,
                          gyro.xFloat, gyro.yFloat, gyro.zFloat, roll);
 
-        System_printf("%s", accelStr);
-        System_flush();
+        //System_printf("%s", accelStr);
+        //System_flush();
 
         f_write(&src, accelStr, length, &bytesWritten);
         f_sync(&src);
+
+        bldc_interface_get_values();
         Task_sleep(100);
     }
 }
 
-void pwmLEDFxn(UArg arg0, UArg arg1)
+void pwmCtrlFxn(UArg arg0, UArg arg1)
 {
     PWM_Handle pwm1;
-    PWM_Handle pwm2 = NULL;
     PWM_Params params;
-    uint16_t   pwmPeriod = 3000;      // Period and duty in microseconds
-    uint16_t   duty = 0;
-    uint16_t   dutyInc = 100;
+    uint16_t   pwmPeriod = 50000;      // Period and duty in microseconds
+    uint16_t   duty = 1500;
+    int16_t   dutyInc = 5;
 
     PWM_Params_init(&params);
     params.period = pwmPeriod;
@@ -213,29 +214,47 @@ void pwmLEDFxn(UArg arg0, UArg arg1)
         System_abort("Board_PWM0 did not open");
     }
 
-    if (Board_PWM1 != Board_PWM0) {
-        params.polarity = PWM_POL_ACTIVE_LOW;
-        pwm2 = PWM_open(Board_PWM1, &params);
-        if (pwm2 == NULL) {
-            System_abort("Board_PWM1 did not open");
-        }
-    }
-
     /* Loop forever incrementing the PWM duty */
     while (1) {
+        if(duty == 1500) {
+            Task_sleep(2500);
+        }
         PWM_setDuty(pwm1, duty);
 
-        if (pwm2) {
-            PWM_setDuty(pwm2, duty);
-        }
-
-        duty = (duty + dutyInc);
-        if (duty == pwmPeriod || (!duty)) {
+        duty += dutyInc;
+        if (duty == 2000 || duty == 1000) {
             dutyInc = - dutyInc;
+            Task_sleep(2500);
         }
 
+        //System_printf("Duty: %u\n", duty);
+        //System_flush();
+        //bldc_interface_get_values();
         Task_sleep((UInt) 100);
     }
+}
+
+void Init_tasks()
+{
+    Task_Params taskParams, dataLogging, pwmTask;
+    /* Construct MPU9150 Task thread */
+    Task_Params_init(&taskParams);
+    taskParams.stackSize = 512;
+    taskParams.stack = &task0Stack;
+    taskParams.priority = 15; //Highest priority, must read on time
+    Task_construct(&task0Struct, (Task_FuncPtr)taskFxn, &taskParams, NULL);
+
+    Task_Params_init(&dataLogging);
+    dataLogging.stackSize = TASKSTACKSIZE;
+    dataLogging.stack = &task1Stack;
+    dataLogging.priority = 3;
+    Task_construct(&task1Struct, (Task_FuncPtr)printFxn, &dataLogging, NULL);
+
+    Task_Params_init(&pwmTask);
+    pwmTask.stackSize = 512;
+    pwmTask.stack = &task2Stack;
+    pwmTask.priority = 2;
+    Task_construct(&task2Struct, (Task_FuncPtr)pwmCtrlFxn, &pwmTask, NULL);
 }
 
 
@@ -244,7 +263,6 @@ void pwmLEDFxn(UArg arg0, UArg arg1)
  */
 int main(void)
 {
-    Task_Params taskParams, task1, task2;
 
     /* Call board init functions */
     Board_initGeneral();
@@ -252,28 +270,11 @@ int main(void)
     Board_initSDSPI();
     Board_initI2C();
     Board_initPWM();
-    Board_initUSB(Board_USBDEVICE);
+    Board_initUART();
 
 
+    Init_tasks();
 
-    /* Construct MPU9150 Task thread */
-    Task_Params_init(&taskParams);
-    taskParams.stackSize = 512;
-    taskParams.stack = &task0Stack;
-    taskParams.priority = 15; //Highest priority, must read on time
-    Task_construct(&task0Struct, (Task_FuncPtr)taskFxn, &taskParams, NULL);
-
-    Task_Params_init(&task1);
-    task1.stackSize = TASKSTACKSIZE;
-    task1.stack = &task1Stack;
-    task1.priority = 1;
-    Task_construct(&task1Struct, (Task_FuncPtr)printFxn, &task1, NULL);
-
-    Task_Params_init(&task2);
-    task1.stackSize = 512;
-    task1.stack = &task2Stack;
-    task1.priority = 2;
-    Task_construct(&task2Struct, (Task_FuncPtr)pwmLEDFxn, &task2, NULL);
 
     comm_uart_init();
 
@@ -282,7 +283,7 @@ int main(void)
     GPIO_setCallback(MPU9150_INT_PIN, gpioMPU9150DataReady);
     GPIO_enableInt(MPU9150_INT_PIN);
 
-    USBCDCD_init();
+    //USBCDCD_init();
 
     System_printf("Starting the I2C example\nSystem provider is set to SysMin."
                   " Halt the target to view any SysMin contents in ROV.\n");
@@ -292,5 +293,5 @@ int main(void)
     /* Start BIOS */
     BIOS_start();
 
-    return (0);
+    return 0;
 }

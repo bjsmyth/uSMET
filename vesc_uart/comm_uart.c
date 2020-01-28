@@ -49,10 +49,10 @@ static void send_packet(unsigned char *data, unsigned int len);
 
 // Threads
 Task_Struct periodicRefresh;
-Char periodicRefreshStack[512];
+Char periodicRefreshStack[2048];
 
 Task_Struct uartProcess;
-Char uartProcessStack[1024];
+Char uartProcessStack[2048];
 
 static void uartCallbackFxn(UART_Handle handle, void *buf, size_t count)
 {
@@ -64,9 +64,10 @@ static void uartCallbackFxn(UART_Handle handle, void *buf, size_t count)
 }
 
 static void periodicUpdate(UArg arg0, UArg arg1) {
+    uint32_t i = 0;
 	for(;;) {
 	    bldc_interface_uart_run_timer();
-	    Task_sleep(1);
+        Task_sleep(1);
 	}
 }
 
@@ -91,20 +92,30 @@ static void send_packet(unsigned char *data, unsigned int len) {
 	memcpy(buffer, data, len);
 
 	UART_write(uart, &buffer, len);
-
-	// Send the data over UART
-	//uartStartSend(&UART_DEV, len, buffer);
 }
 
 void bldc_val_received(mc_values *val)
 {
     memcpy(&vescFeedback, val, sizeof(mc_values));
+
+    System_printf("Input voltage: %.2f V\n", val->v_in);
+    System_printf("Temp:          %.2f degC\n", val->temp_mos);
+    System_printf("Current motor: %.2f A\n", val->current_motor);
+    System_printf("Current in:    %.2f A\n", val->current_in);
+    System_printf("RPM:           %.1f RPM\n", val->rpm);
+    System_printf("Duty cycle:    %.1f %%\n", val->duty_now * 100.0);
+    System_printf("Ah Drawn:      %.4f Ah\n", val->amp_hours);
+    System_printf("Ah Regen:      %.4f Ah\n", val->amp_hours_charged);
+    System_printf("Wh Drawn:      %.4f Wh\n", val->watt_hours);
+    System_printf("Wh Regen:      %.4f Wh\n", val->watt_hours_charged);
+    System_printf("Tacho:         %i counts\n", val->tachometer);
+    System_printf("Tacho ABS:     %i counts\n", val->tachometer_abs);
+    System_printf("Fault Code:    %s\n", bldc_interface_fault_to_string(val->fault_code));
+
+    System_flush();
 }
 
 void comm_uart_init(void) {
-	// Initialize UART
-    Board_initUART();
-
     UART_Params uartParams;
 
     /* Create a UART with data processing off. */
@@ -121,17 +132,17 @@ void comm_uart_init(void) {
     bldc_interface_uart_init(send_packet);
     bldc_interface_set_rx_value_func(bldc_val_received);
 
-    Task_Params task1, task2;
+    Task_Params periodicTaskParams, processingTaskParams;
 
-    Task_Params_init(&task1);
-    task1.stackSize = 512;
-    task1.stack = &periodicRefreshStack;
-    task1.priority = 2;
-    Task_construct(&periodicRefresh, (Task_FuncPtr)periodicUpdate, &task1, NULL);
+    Task_Params_init(&periodicTaskParams);
+    periodicTaskParams.stackSize = 512;
+    periodicTaskParams.stack = &periodicRefreshStack;
+    periodicTaskParams.priority = 1;
+    Task_construct(&periodicRefresh, (Task_FuncPtr)periodicUpdate, &periodicTaskParams, NULL);
 
-    Task_Params_init(&task2);
-    task2.stackSize = 1024;
-    task2.stack = uartProcessStack;
-    task2.priority = 2;
-    Task_construct(&uartProcess, (Task_FuncPtr)uartProcessFxn, &task2, NULL);
+    Task_Params_init(&processingTaskParams);
+    processingTaskParams.stackSize = 2048;
+    processingTaskParams.stack = uartProcessStack;
+    processingTaskParams.priority = 2;
+    Task_construct(&uartProcess, (Task_FuncPtr)uartProcessFxn, &processingTaskParams, NULL);
 }
