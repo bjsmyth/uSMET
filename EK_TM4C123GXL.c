@@ -579,11 +579,11 @@ const UARTTivaDMA_HWAttrs uartTivaHWAttrs[EK_TM4C123GXL_UARTCOUNT] = {
         .txChannelIndex = UDMA_CH9_UART0TX,
     },
     {
-        .baseAddr = UART2_BASE,
-        .intNum = INT_UART2,
+        .baseAddr = UART7_BASE,
+        .intNum = INT_UART7,
         .intPriority = (~0),
-        .rxChannelIndex = UDMA_CH12_UART2RX,
-        .txChannelIndex = UDMA_CH13_UART2TX,
+        .rxChannelIndex = UDMA_CH20_UART7RX,
+        .txChannelIndex = UDMA_CH21_UART7TX,
     }
 };
 
@@ -652,10 +652,10 @@ void EK_TM4C123GXL_initUART(void)
     GPIOPinConfigure(GPIO_PA1_U0TX);
     GPIOPinTypeUART(GPIO_PORTA_BASE, GPIO_PIN_0 | GPIO_PIN_1);
 
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_UART2);
-    GPIOPinConfigure(GPIO_PD6_U2RX);
-    GPIOPinConfigure(GPIO_PD7_U2TX);
-    GPIOPinTypeUART(GPIO_PORTD_BASE, GPIO_PIN_6 | GPIO_PIN_7);
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_UART7);
+    GPIOPinConfigure(GPIO_PE0_U7RX);
+    GPIOPinConfigure(GPIO_PE1_U7TX);
+    GPIOPinTypeUART(GPIO_PORTE_BASE, GPIO_PIN_0 | GPIO_PIN_1);
 
     /* Initialize the UART driver */
 #if TI_DRIVERS_UART_DMA
