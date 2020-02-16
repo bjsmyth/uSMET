@@ -146,7 +146,6 @@ void EK_TM4C123GXL_initGeneral(void)
 #include <ti/drivers/GPIO.h>
 #include <ti/drivers/gpio/GPIOTiva.h>
 
-void gpioMPU9150DataReady(void);
 
 /*
  * Array of Pin configurations
@@ -425,135 +424,6 @@ void EK_TM4C123GXL_initSDSPI(void)
     SDSPI_init();
 }
 
-/*
- *  =============================== SPI ===============================
- */
-/* Place into subsections to allow the TI linker to remove items properly */
-#if defined(__TI_COMPILER_VERSION__)
-#pragma DATA_SECTION(SPI_config, ".const:SPI_config")
-#pragma DATA_SECTION(spiTivaDMAHWAttrs, ".const:spiTivaDMAHWAttrs")
-#endif
-
-#include <ti/drivers/SPI.h>
-#include <ti/drivers/spi/SPITivaDMA.h>
-
-SPITivaDMA_Object spiTivaDMAObjects[EK_TM4C123GXL_SPICOUNT];
-
-#if defined(__TI_COMPILER_VERSION__)
-#pragma DATA_ALIGN(spiTivaDMAscratchBuf, 32)
-#elif defined(__IAR_SYSTEMS_ICC__)
-#pragma data_alignment=32
-#elif defined(__GNUC__)
-__attribute__ ((aligned (32)))
-#endif
-uint32_t spiTivaDMAscratchBuf[EK_TM4C123GXL_SPICOUNT];
-
-const SPITivaDMA_HWAttrs spiTivaDMAHWAttrs[EK_TM4C123GXL_SPICOUNT] = {
-    {
-        .baseAddr = SSI0_BASE,
-        .intNum = INT_SSI0,
-        .intPriority = (~0),
-        .scratchBufPtr = &spiTivaDMAscratchBuf[0],
-        .defaultTxBufValue = 0,
-        .rxChannelIndex = UDMA_CHANNEL_SSI0RX,
-        .txChannelIndex = UDMA_CHANNEL_SSI0TX,
-        .channelMappingFxn = uDMAChannelAssign,
-        .rxChannelMappingFxnArg = UDMA_CH10_SSI0RX,
-        .txChannelMappingFxnArg = UDMA_CH11_SSI0TX
-    },
-    {
-        .baseAddr = SSI2_BASE,
-        .intNum = INT_SSI2,
-        .intPriority = (~0),
-        .scratchBufPtr = &spiTivaDMAscratchBuf[1],
-        .defaultTxBufValue = 0,
-        .rxChannelIndex = UDMA_SEC_CHANNEL_UART2RX_12,
-        .txChannelIndex = UDMA_SEC_CHANNEL_UART2TX_13,
-        .channelMappingFxn = uDMAChannelAssign,
-        .rxChannelMappingFxnArg = UDMA_CH12_SSI2RX,
-        .txChannelMappingFxnArg = UDMA_CH13_SSI2TX
-    },
-    {
-        .baseAddr = SSI3_BASE,
-        .intNum = INT_SSI3,
-        .intPriority = (~0),
-        .scratchBufPtr = &spiTivaDMAscratchBuf[2],
-        .defaultTxBufValue = 0,
-        .rxChannelIndex = UDMA_SEC_CHANNEL_TMR2A_14,
-        .txChannelIndex = UDMA_SEC_CHANNEL_TMR2B_15,
-        .channelMappingFxn = uDMAChannelAssign,
-        .rxChannelMappingFxnArg = UDMA_CH14_SSI3RX,
-        .txChannelMappingFxnArg = UDMA_CH15_SSI3TX
-    }
-};
-
-const SPI_Config SPI_config[] = {
-    {
-        .fxnTablePtr = &SPITivaDMA_fxnTable,
-        .object = &spiTivaDMAObjects[0],
-        .hwAttrs = &spiTivaDMAHWAttrs[0]
-    },
-    {
-        .fxnTablePtr = &SPITivaDMA_fxnTable,
-        .object = &spiTivaDMAObjects[1],
-        .hwAttrs = &spiTivaDMAHWAttrs[1]
-    },
-    {
-        .fxnTablePtr = &SPITivaDMA_fxnTable,
-        .object = &spiTivaDMAObjects[2],
-        .hwAttrs = &spiTivaDMAHWAttrs[2]
-    },
-    {NULL, NULL, NULL},
-};
-
-/*
- *  ======== EK_TM4C123GXL_initSPI ========
- */
-void EK_TM4C123GXL_initSPI(void)
-{
-    /* SPI0 */
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_SSI0);
-
-    /* Need to unlock PF0 */
-    GPIOPinConfigure(GPIO_PA2_SSI0CLK);
-    GPIOPinConfigure(GPIO_PA3_SSI0FSS);
-    GPIOPinConfigure(GPIO_PA4_SSI0RX);
-    GPIOPinConfigure(GPIO_PA5_SSI0TX);
-
-    GPIOPinTypeSSI(GPIO_PORTA_BASE, GPIO_PIN_2 | GPIO_PIN_3 |
-                                    GPIO_PIN_4 | GPIO_PIN_5);
-
-    /* SSI2 */
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_SSI2);
-
-    GPIOPinConfigure(GPIO_PB4_SSI2CLK);
-    GPIOPinConfigure(GPIO_PB5_SSI2FSS);
-    GPIOPinConfigure(GPIO_PB6_SSI2RX);
-    GPIOPinConfigure(GPIO_PB7_SSI2TX);
-
-    GPIOPinTypeSSI(GPIO_PORTB_BASE, GPIO_PIN_4 | GPIO_PIN_5 |
-                                    GPIO_PIN_6 | GPIO_PIN_7);
-
-    /* SSI3 */
-    /*
-     * NOTE: TI-RTOS examples configure pins PD0 & PD1 for SSI3 or I2C3.  Thus,
-     * a conflict occurs when the I2C & SPI drivers are used simultaneously in
-     * an application.  Modify the pin mux settings in this file and resolve the
-     * conflict before running your the application.
-     */
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_SSI3);
-
-    GPIOPinConfigure(GPIO_PD0_SSI3CLK);
-    GPIOPinConfigure(GPIO_PD1_SSI3FSS);
-    GPIOPinConfigure(GPIO_PD2_SSI3RX);
-    GPIOPinConfigure(GPIO_PD3_SSI3TX);
-
-    GPIOPinTypeSSI(GPIO_PORTD_BASE, GPIO_PIN_0 | GPIO_PIN_1 |
-                                    GPIO_PIN_2 | GPIO_PIN_3);
-
-    EK_TM4C123GXL_initDMA();
-    SPI_init();
-}
 
 /*
  *  =============================== UART ===============================
@@ -579,6 +449,27 @@ const UARTTivaDMA_HWAttrs uartTivaHWAttrs[EK_TM4C123GXL_UARTCOUNT] = {
         .txChannelIndex = UDMA_CH9_UART0TX,
     },
     {
+        .baseAddr = UART1_BASE,
+        .intNum = INT_UART1,
+        .intPriority = (~0),
+        .rxChannelIndex = UDMA_CH22_UART1RX,
+        .txChannelIndex = UDMA_CH23_UART1TX,
+    },
+    {
+        .baseAddr = UART3_BASE,
+        .intNum = INT_UART3,
+        .intPriority = (~0),
+        .rxChannelIndex = UDMA_CH16_UART3RX,
+        .txChannelIndex = UDMA_CH17_UART3TX,
+    },
+    {
+        .baseAddr = UART6_BASE,
+        .intNum = INT_UART6,
+        .intPriority = (~0),
+        .rxChannelIndex = UDMA_CH10_UART6RX,
+        .txChannelIndex = UDMA_CH11_UART6TX,
+    },
+    {
         .baseAddr = UART7_BASE,
         .intNum = INT_UART7,
         .intPriority = (~0),
@@ -598,13 +489,28 @@ const UART_Config UART_config[] = {
        .object = &uartTivaObjects[1],
        .hwAttrs = &uartTivaHWAttrs[1]
    },
+   {
+      .fxnTablePtr = &UARTTivaDMA_fxnTable,
+      .object = &uartTivaObjects[2],
+      .hwAttrs = &uartTivaHWAttrs[2]
+   },
+   {
+      .fxnTablePtr = &UARTTivaDMA_fxnTable,
+      .object = &uartTivaObjects[3],
+      .hwAttrs = &uartTivaHWAttrs[3]
+   },
+   {
+      .fxnTablePtr = &UARTTivaDMA_fxnTable,
+      .object = &uartTivaObjects[4],
+      .hwAttrs = &uartTivaHWAttrs[4]
+   },
     {NULL, NULL, NULL}
 };
 #else
 #include <ti/drivers/uart/UARTTiva.h>
 
 UARTTiva_Object uartTivaObjects[EK_TM4C123GXL_UARTCOUNT];
-unsigned char uartTivaRingBuffer[EK_TM4C123GXL_UARTCOUNT][32];
+unsigned char uartTivaRingBuffer[EK_TM4C123GXL_UARTCOUNT][128];
 
 /* UART configuration structure */
 const UARTTiva_HWAttrs uartTivaHWAttrs[EK_TM4C123GXL_UARTCOUNT] = {
@@ -617,12 +523,20 @@ const UARTTiva_HWAttrs uartTivaHWAttrs[EK_TM4C123GXL_UARTCOUNT] = {
         .ringBufSize = sizeof(uartTivaRingBuffer[0])
     },
     {
-        .baseAddr = UART2_BASE,
-        .intNum = INT_UART2,
+        .baseAddr = UART7_BASE,
+        .intNum = INT_UART7,
         .intPriority = (~0),
         .flowControl = UART_FLOWCONTROL_NONE,
         .ringBufPtr  = uartTivaRingBuffer[1],
         .ringBufSize = sizeof(uartTivaRingBuffer[1])
+    },
+    {
+        .baseAddr = UART3_BASE,
+        .intNum = INT_UART3,
+        .intPriority = (~0),
+        .flowControl = UART_FLOWCONTROL_NONE,
+        .ringBufPtr  = uartTivaRingBuffer[2],
+        .ringBufSize = sizeof(uartTivaRingBuffer[2])
     }
 };
 
@@ -637,6 +551,11 @@ const UART_Config UART_config[] = {
        .object = &uartTivaObjects[1],
        .hwAttrs = &uartTivaHWAttrs[1]
    },
+   {
+      .fxnTablePtr = &UARTTiva_fxnTable,
+      .object = &uartTivaObjects[2],
+      .hwAttrs = &uartTivaHWAttrs[2]
+  },
     {NULL, NULL, NULL}
 };
 #endif /* TI_DRIVERS_UART_DMA */
@@ -651,6 +570,21 @@ void EK_TM4C123GXL_initUART(void)
     GPIOPinConfigure(GPIO_PA0_U0RX);
     GPIOPinConfigure(GPIO_PA1_U0TX);
     GPIOPinTypeUART(GPIO_PORTA_BASE, GPIO_PIN_0 | GPIO_PIN_1);
+
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_UART1);
+    GPIOPinConfigure(GPIO_PB0_U1RX);
+    GPIOPinConfigure(GPIO_PB1_U1TX);
+    GPIOPinTypeUART(GPIO_PORTB_BASE, GPIO_PIN_0 | GPIO_PIN_1);
+
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_UART3);
+    GPIOPinConfigure(GPIO_PC6_U3RX);
+    GPIOPinConfigure(GPIO_PC7_U3TX);
+    GPIOPinTypeUART(GPIO_PORTC_BASE, GPIO_PIN_6 | GPIO_PIN_7);
+
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_UART6);
+    GPIOPinConfigure(GPIO_PD4_U6RX);
+    GPIOPinConfigure(GPIO_PD5_U6TX);
+    GPIOPinTypeUART(GPIO_PORTD_BASE, GPIO_PIN_4 | GPIO_PIN_5);
 
     SysCtlPeripheralEnable(SYSCTL_PERIPH_UART7);
     GPIOPinConfigure(GPIO_PE0_U7RX);

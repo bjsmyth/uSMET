@@ -36,6 +36,7 @@
 /* XDCtools Header files */
 #include <xdc/std.h>
 #include <xdc/runtime/System.h>
+#include <xdc/runtime/Error.h>
 #include <xdc/cfg/global.h>
 
 /* BIOS Header files */
@@ -60,26 +61,32 @@
 
 /* Board Header files */
 #include "Board.h"
+#include "config.h"
 
-#include "MPU9150.h"
-#include "six_axis_comp_filter.h"
+#include "IMU/MPU9150.h"
+#include "IMU/six_axis_comp_filter.h"
+
 #include "vesc_uart/comm_uart.h"
 #include "vesc_uart/bldc_interface.h"
+#include "vesc_uart/datatypes.h"
 
-#define TASKSTACKSIZE       3072
+#include "communication/communication.h"
 
 
 Task_Struct task0Struct;
-Char task0Stack[512];
+Char task0Stack[IMUPROCESS_STACK];
 
 Task_Struct task1Struct;
-Char task1Stack[TASKSTACKSIZE];
+Char task1Stack[DATALOG_STACK];
 
 Task_Struct task2Struct;
-Char task2Stack[512];
+Char task2Stack[PWMCTRL_STACK];
+
 
 static MPU9150_Handle mpu;
+static GateMutex_Handle compFilterAccess;
 static SixAxis compFilter;
+
 
 void gpioMPU9150DataReady(unsigned int index) {
     GPIO_clearInt(MPU9150_INT_PIN);
@@ -87,13 +94,10 @@ void gpioMPU9150DataReady(unsigned int index) {
 
 }
 
-/*
- *  ======== taskFxn ========
- *  Task for this function is created statically. See the project's .cfg file.
- */
-Void taskFxn(UArg arg0, UArg arg1)
+Void imuProc(UArg arg0, UArg arg1)
 {
     MPU9150_Data accel, gyro;
+    unsigned int key;
     mpu = MPU9150_init(0, Board_I2C0, 0x68);
     if(!mpu) {
         GPIO_write(Board_LED2, Board_LED_ON);
@@ -125,20 +129,34 @@ Void taskFxn(UArg arg0, UArg arg1)
         MPU9150_getGyroFloat(mpu, &gyro);
         MPU9150_getAccelFloat(mpu, &accel);
 
+        key = GateMutex_enter(compFilterAccess);
         CompGyroUpdate(&compFilter, gyro.xFloat, gyro.yFloat, gyro.zFloat);
         CompAccelUpdate(&compFilter, accel.xFloat, accel.yFloat, accel.zFloat);
         CompUpdate(&compFilter);
+        GateMutex_leave(compFilterAccess, key);
     }
+}
+
+void SDCard_Init(FIL *src)
+{
+
 }
 
 Void printFxn(UArg arg0, UArg arg1) {
 
-    char outputfile[20];
-    SDSPI_Handle sdspiHandle;
-    SDSPI_Params sdspiParams;
+    bool vescMboxRes;
+    mc_values vescFeedback = { 0 };
 
+    MPU9150_Data accel, gyro;
+
+    packet test = { 0 };
+
+    unsigned int key;
+
+
+    /*SDSPI_Handle sdspiHandle;
+    SDSPI_Params sdspiParams;
     FIL src;
-    unsigned int bytesWritten = 0;
 
     SDSPI_Params_init(&sdspiParams);
     sdspiHandle = SDSPI_open(Board_SDSPI0, 0, &sdspiParams);
@@ -148,11 +166,14 @@ Void printFxn(UArg arg0, UArg arg1) {
     else {
         System_printf("Drive 0 is mounted\n");
     }
-    unsigned int fileNum = 0;
+
+    uint32_t fileNum = 0;
+    char outputfile[16];
     FRESULT res;
     do { //Try to open a file on the SD card
         sprintf(outputfile, "0:log_%u.csv", fileNum++);
         res = f_open(&src, outputfile, FA_CREATE_NEW | FA_WRITE);
+
         if(res == FR_NOT_READY) {
             GPIO_write(Board_LED2, Board_LED_ON);
             System_abort("SD Card reported not ready, try reseating card");
@@ -161,40 +182,59 @@ Void printFxn(UArg arg0, UArg arg1) {
 
     System_printf("Successfully opened log file: %s\n", outputfile);
     System_flush();
-    const char csvStr[] = "accel_x,accel_y,accel_z,gyro_x,gyro_y,gyro_z,roll\n";
-    f_write(&src, csvStr, strlen(csvStr), &bytesWritten);
+    const char csvStr[] = "accel_x,accel_y,accel_z,gyro_x,gyro_y,gyro_z,roll,rpm,tachometer\n";
+    f_write(&src, csvStr, strlen(csvStr), NULL);*/
 
-    MPU9150_Data accel, gyro;
 
-    char accelStr[100];
-    uint32_t length;
-    float roll, rollOffset;
     Task_sleep(5000);
+
+    char logStr[128];
+    float roll, rollOffset;
 
     CompAnglesGet(&compFilter, NULL, &rollOffset); //Offset
     GPIO_write(Board_LED0, Board_LED_OFF);
     GPIO_write(Board_LED1, Board_LED_ON);
-    for(;;) {
+    uint32_t i;
+    for(i = 0;; i++) {
         MPU9150_getGyroFloat(mpu, &gyro);
         MPU9150_getAccelFloat(mpu, &accel);
+        key = GateMutex_enter(compFilterAccess);
         CompAnglesGet(&compFilter, NULL, &roll);
+        GateMutex_leave(compFilterAccess, key);
         roll -= rollOffset;
         roll = CompRadiansToDegrees(roll);
         if(roll >= 180.0f) {
             roll -= 360.0f;
         }
 
-        length = sprintf(accelStr, "%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f\n",
+        vescMboxRes = Mailbox_pend(vescTelemetry, &vescFeedback, BIOS_NO_WAIT);
+        if(vescMboxRes) {
+            vescFeedback.rpm *= (1.0f / 7.0f);
+            //System_printf("Input voltage: %.2f V\r\n", vescFeedback.v_in);
+            //System_printf("Current in:    %.2f A\r\n", vescFeedback.current_in);
+            //System_printf("RPM:           %.1f RPM\r\n", vescFeedback.rpm);
+            //System_printf("Tach:         %i counts\r\n", vescFeedback.tachometer);
+            //System_flush();
+        }
+
+
+        /*length = sprintf(logStr, "%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%d\n",
                          accel.xFloat, accel.yFloat, accel.zFloat,
-                         gyro.xFloat, gyro.yFloat, gyro.zFloat, roll);
+                         gyro.xFloat, gyro.yFloat, gyro.zFloat, roll,
+                         vescFeedback.rpm, vescFeedback.tachometer);
 
-        //System_printf("%s", accelStr);
-        //System_flush();
+        //f_write(&src, logStr, length, &bytesWritten);
+        //f_sync(&src);
 
-        f_write(&src, accelStr, length, &bytesWritten);
-        f_sync(&src);
+        //System_printf("%s", logStr);
+        //System_flush();*/
 
-        bldc_interface_get_values();
+        test.reartrack_pos += 1;
+        test.vehicle_roll = roll;
+        test.vehicle_speed = 0;
+        communication_uart_send(test);
+        bldc_interface_get_values(VESC_UART_DRIVE);
+
         Task_sleep(100);
     }
 }
@@ -217,20 +257,17 @@ void pwmCtrlFxn(UArg arg0, UArg arg1)
     /* Loop forever incrementing the PWM duty */
     while (1) {
         if(duty == 1500) {
-            Task_sleep(2500);
+            //Task_sleep(2500);
         }
         PWM_setDuty(pwm1, duty);
 
         duty += dutyInc;
         if (duty == 2000 || duty == 1000) {
             dutyInc = - dutyInc;
-            Task_sleep(2500);
+            //Task_sleep(10000);
         }
 
-        //System_printf("Duty: %u\n", duty);
-        //System_flush();
-        //bldc_interface_get_values();
-        Task_sleep((UInt) 100);
+        Task_sleep(100);
     }
 }
 
@@ -239,22 +276,26 @@ void Init_tasks()
     Task_Params taskParams, dataLogging, pwmTask;
     /* Construct MPU9150 Task thread */
     Task_Params_init(&taskParams);
-    taskParams.stackSize = 512;
+    taskParams.stackSize = IMUPROCESS_STACK;
     taskParams.stack = &task0Stack;
-    taskParams.priority = 15; //Highest priority, must read on time
-    Task_construct(&task0Struct, (Task_FuncPtr)taskFxn, &taskParams, NULL);
+    taskParams.priority = IMUPROCESS_PRIORITY; //Highest priority, must read on time
+    Task_construct(&task0Struct, (Task_FuncPtr)imuProc, &taskParams, NULL);
 
     Task_Params_init(&dataLogging);
-    dataLogging.stackSize = TASKSTACKSIZE;
+    dataLogging.stackSize = DATALOG_STACK;
     dataLogging.stack = &task1Stack;
-    dataLogging.priority = 3;
+    dataLogging.priority = DATALOG_PRIORITY;
     Task_construct(&task1Struct, (Task_FuncPtr)printFxn, &dataLogging, NULL);
 
     Task_Params_init(&pwmTask);
-    pwmTask.stackSize = 512;
+    pwmTask.stackSize = PWMCTRL_STACK;
     pwmTask.stack = &task2Stack;
-    pwmTask.priority = 2;
+    pwmTask.priority = PWMCTRL_PRIORITY;
     Task_construct(&task2Struct, (Task_FuncPtr)pwmCtrlFxn, &pwmTask, NULL);
+
+    Error_Block eb;
+    Error_init(&eb);
+    compFilterAccess = GateMutex_create(NULL, &eb);
 }
 
 
@@ -267,16 +308,15 @@ int main(void)
     /* Call board init functions */
     Board_initGeneral();
     Board_initGPIO();
-    Board_initSDSPI();
+    //Board_initSDSPI();
     Board_initI2C();
     Board_initPWM();
     Board_initUART();
 
 
     Init_tasks();
-
-
     comm_uart_init();
+    communication_uart_init();
 
     /* Turn on user LED */
     GPIO_write(Board_LED0, Board_LED_ON);
@@ -285,8 +325,7 @@ int main(void)
 
     //USBCDCD_init();
 
-    System_printf("Starting the I2C example\nSystem provider is set to SysMin."
-                  " Halt the target to view any SysMin contents in ROV.\n");
+    System_printf("Starting uSMET software\n");
     /* SysMin will only print to the console when you call flush or exit */
     System_flush();
 

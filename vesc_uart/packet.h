@@ -26,15 +26,16 @@
 #define PACKET_H_
 
 #include <stdint.h>
+#include "config.h"
 
 // Settings
 #define PACKET_RX_TIMEOUT		2
-#define PACKET_HANDLERS			1
+#define PACKET_HANDLERS			VESC_UART_COUNT
 #define PACKET_MAX_PL_LEN		512
 
 // Functions
-void packet_init(void (*s_func)(unsigned char *data, unsigned int len),
-		void (*p_func)(unsigned char *data, unsigned int len), int handler_num);
+void packet_init(void (*s_func)(unsigned int uart_index, unsigned char *data, unsigned int len),
+		void (*p_func)(unsigned int uart_index, unsigned char *data, unsigned int len), int handler_num);
 void packet_process_byte(uint8_t rx_data, int handler_num);
 void packet_timerfunc(void);
 void packet_send_packet(unsigned char *data, unsigned int len, int handler_num);

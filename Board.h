@@ -70,12 +70,12 @@ extern "C" {
 
 #define Board_SDSPI0                EK_TM4C123GXL_SDSPI0
 
-#define Board_SPI0                  EK_TM4C123GXL_SPI0
-#define Board_SPI1                  EK_TM4C123GXL_SPI3
-
 #define Board_USBDEVICE             EK_TM4C123GXL_USBDEVICE
 
 #define Board_UART0                 EK_TM4C123GXL_UART0
+#define Board_UART1                 EK_TM4C123GXL_UART1
+#define Board_UART3                 EK_TM4C123GXL_UART3
+#define Board_UART6                 EK_TM4C123GXL_UART6
 #define Board_UART7                 EK_TM4C123GXL_UART7
 
 #define Board_WATCHDOG0             EK_TM4C123GXL_WATCHDOG0
