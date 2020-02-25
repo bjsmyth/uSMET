@@ -337,6 +337,10 @@ void bldc_interface_set_rpm(unsigned int uart_index, int rpm) {
 	send_packet_no_fwd(uart_index, send_buffer[uart_index], send_index);
 }
 
+void bldc_interface_set_rpm_true(unsigned int uart_index, int rpm) {
+    bldc_interface_set_rpm(uart_index, rpm * MOTOR_POLE_PAIRS);
+}
+
 void bldc_interface_set_pos(unsigned int uart_index, float pos) {
 	if (motor_control_set_func) {
 		motor_control_set_func(uart_index, MOTOR_CONTROL_POS, pos);

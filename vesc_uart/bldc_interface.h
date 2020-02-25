@@ -20,6 +20,8 @@
 
 #include "datatypes.h"
 
+#define MOTOR_POLE_PAIRS (7)
+
 // interface functions
 void bldc_interface_init(void(*func)(unsigned int uart_index, unsigned char *data, unsigned int len));
 void bldc_interface_set_forward_func(void(*func)(unsigned int uart_index, unsigned char *data, unsigned int len));
@@ -44,6 +46,7 @@ void bldc_interface_set_duty_cycle(unsigned int uart_index, float dutyCycle);
 void bldc_interface_set_current(unsigned int uart_index, float current);
 void bldc_interface_set_current_brake(unsigned int uart_index, float current);
 void bldc_interface_set_rpm(unsigned int uart_index, int rpm);
+void bldc_interface_set_rpm_true(unsigned int uart_index, int rpm);
 void bldc_interface_set_pos(unsigned int uart_index, float pos);
 void bldc_interface_set_handbrake(unsigned int uart_index, float current);
 void bldc_interface_set_servo_pos(unsigned int uart_index, float pos);

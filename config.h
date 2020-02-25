@@ -17,13 +17,12 @@
 #define FLUSH_STACK (512)
 
 #define VESCPROCESS_STACK (1024)
-#define VESCTIMEOUT_STACK (384)
+#define VESCTIMEOUT_STACK (512)
 
 /* Task Priority (Higher Number == Higher Priority) */
 #define IMUPROCESS_PRIORITY (15)
-#define DATALOG_PRIORITY (3)
-#define PWMCTRL_PRIORITY (5)
-#define FLUSH_PRIORITY (2)
+#define DATALOG_PRIORITY (5)
+#define PWMCTRL_PRIORITY (3)
 
 #define VESCPROCESS_PRIORITY (1)
 #define VESCTIMEOUT_PRIORITY (1)
@@ -34,7 +33,12 @@ typedef enum VESC_UARTName {
     VESC_UART_DRIVE = 0,
     VESC_UART_COUNT
 } VESC_UARTName;
-#define VESC_UART_DRV Board_UART7
-#define COMMUNICATION_UART Board_UART3
+#define VESC_UART_DRV Board_UART3
+
+#define COMMUNICATION_UART Board_UART0
+#define COMMUNICATION_UART_BAUD (1000000)
+
+#define BLUETOOTH_UART Board_UART7
+#define BLUETOOTH_UART_BAUD (115200)
 
 #endif /* CONFIG_H_ */

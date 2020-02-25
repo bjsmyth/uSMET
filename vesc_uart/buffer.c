@@ -16,6 +16,7 @@
     */
 
 #include "buffer.h"
+#include "datatypes.h"
 #include <math.h>
 #include <stdbool.h>
 
@@ -94,6 +95,14 @@ void buffer_append_float32_auto(uint8_t* buffer, float number, int32_t *index) {
 	}
 
 	buffer_append_uint32(buffer, res, index);
+}
+
+void buffer_append_float32_true(uint8_t* buffer, float number, int32_t *index) {
+    floatbytes value;
+
+    value.value = number;
+
+    buffer_append_uint32(buffer, value.uint, index);
 }
 
 int16_t buffer_get_int16(const uint8_t *buffer, int32_t *index) {
@@ -184,4 +193,12 @@ float buffer_get_float32_auto(const uint8_t *buffer, int32_t *index) {
 	}
 
 	return ldexpf(sig, e);
+}
+
+float buffer_get_float32_true(const uint8_t *buffer, int32_t *index) {
+    floatbytes ret;
+
+    ret.uint = buffer_get_uint32(buffer, index);
+
+    return ret.value;
 }

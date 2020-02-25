@@ -21,6 +21,12 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+typedef union _floatbytes {
+    float value;
+    uint8_t array[sizeof(float)];
+    uint32_t uint;
+} floatbytes;
+
 // CAN status sent by VESC
 typedef struct {
 	int id;

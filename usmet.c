@@ -42,6 +42,7 @@
 /* BIOS Header files */
 #include <ti/sysbios/BIOS.h>
 #include <ti/sysbios/knl/Task.h>
+#include <ti/sysbios/knl/Clock.h>
 
 /* TI-RTOS Header files */
 #include <ti/drivers/GPIO.h>
@@ -62,6 +63,7 @@
 /* Board Header files */
 #include "Board.h"
 #include "config.h"
+#include "utilities.h"
 
 #include "IMU/MPU9150.h"
 #include "IMU/six_axis_comp_filter.h"
@@ -74,17 +76,16 @@
 
 
 Task_Struct task0Struct;
-Char task0Stack[IMUPROCESS_STACK];
+uint8_t task0Stack[IMUPROCESS_STACK];
 
 Task_Struct task1Struct;
-Char task1Stack[DATALOG_STACK];
+uint8_t task1Stack[DATALOG_STACK];
 
 Task_Struct task2Struct;
-Char task2Stack[PWMCTRL_STACK];
+uint8_t task2Stack[PWMCTRL_STACK];
 
 
 static MPU9150_Handle mpu;
-static GateMutex_Handle compFilterAccess;
 static SixAxis compFilter;
 
 
@@ -97,7 +98,6 @@ void gpioMPU9150DataReady(unsigned int index) {
 Void imuProc(UArg arg0, UArg arg1)
 {
     MPU9150_Data accel, gyro;
-    unsigned int key;
     mpu = MPU9150_init(0, Board_I2C0, 0x68);
     if(!mpu) {
         GPIO_write(Board_LED2, Board_LED_ON);
@@ -129,17 +129,10 @@ Void imuProc(UArg arg0, UArg arg1)
         MPU9150_getGyroFloat(mpu, &gyro);
         MPU9150_getAccelFloat(mpu, &accel);
 
-        key = GateMutex_enter(compFilterAccess);
         CompGyroUpdate(&compFilter, gyro.xFloat, gyro.yFloat, gyro.zFloat);
         CompAccelUpdate(&compFilter, accel.xFloat, accel.yFloat, accel.zFloat);
         CompUpdate(&compFilter);
-        GateMutex_leave(compFilterAccess, key);
     }
-}
-
-void SDCard_Init(FIL *src)
-{
-
 }
 
 Void printFxn(UArg arg0, UArg arg1) {
@@ -151,8 +144,7 @@ Void printFxn(UArg arg0, UArg arg1) {
 
     packet test = { 0 };
 
-    unsigned int key;
-
+    uint32_t startTick, endTick;
 
     /*SDSPI_Handle sdspiHandle;
     SDSPI_Params sdspiParams;
@@ -188,19 +180,21 @@ Void printFxn(UArg arg0, UArg arg1) {
 
     Task_sleep(5000);
 
-    char logStr[128];
+    //char logStr[128];
     float roll, rollOffset;
+
 
     CompAnglesGet(&compFilter, NULL, &rollOffset); //Offset
     GPIO_write(Board_LED0, Board_LED_OFF);
     GPIO_write(Board_LED1, Board_LED_ON);
     uint32_t i;
     for(i = 0;; i++) {
+        startTick = Clock_getTicks();
+
         MPU9150_getGyroFloat(mpu, &gyro);
         MPU9150_getAccelFloat(mpu, &accel);
-        key = GateMutex_enter(compFilterAccess);
+
         CompAnglesGet(&compFilter, NULL, &roll);
-        GateMutex_leave(compFilterAccess, key);
         roll -= rollOffset;
         roll = CompRadiansToDegrees(roll);
         if(roll >= 180.0f) {
@@ -210,11 +204,6 @@ Void printFxn(UArg arg0, UArg arg1) {
         vescMboxRes = Mailbox_pend(vescTelemetry, &vescFeedback, BIOS_NO_WAIT);
         if(vescMboxRes) {
             vescFeedback.rpm *= (1.0f / 7.0f);
-            //System_printf("Input voltage: %.2f V\r\n", vescFeedback.v_in);
-            //System_printf("Current in:    %.2f A\r\n", vescFeedback.current_in);
-            //System_printf("RPM:           %.1f RPM\r\n", vescFeedback.rpm);
-            //System_printf("Tach:         %i counts\r\n", vescFeedback.tachometer);
-            //System_flush();
         }
 
 
@@ -231,11 +220,25 @@ Void printFxn(UArg arg0, UArg arg1) {
 
         test.reartrack_pos += 1;
         test.vehicle_roll = roll;
-        test.vehicle_speed = 0;
-        communication_uart_send(test);
+        test.vehicle_speed = vescFeedback.rpm;
+        test.accel = accel;
+        test.gyro = gyro;
+        int16_t remVal = communication_uart_send(test);
+        //bldc_interface_set_rpm_true(VESC_UART_DRIVE, 1);
         bldc_interface_get_values(VESC_UART_DRIVE);
 
-        Task_sleep(100);
+        float duty = map((float)remVal, (float)INT16_MIN, (float)INT16_MAX, -1.0f, 1.0f);
+
+        //bldc_interface_set_duty_cycle(VESC_UART_DRIVE, duty);
+        //System_printf("%d %f\n", remVal, duty);
+        //System_flush();
+
+        endTick = Clock_getTicks();
+        int sleepTime = 50 - (endTick - startTick);
+        if(sleepTime < 0) {
+            sleepTime = 0;
+        }
+        Task_sleep(sleepTime);
     }
 }
 
@@ -292,10 +295,6 @@ void Init_tasks()
     pwmTask.stack = &task2Stack;
     pwmTask.priority = PWMCTRL_PRIORITY;
     Task_construct(&task2Struct, (Task_FuncPtr)pwmCtrlFxn, &pwmTask, NULL);
-
-    Error_Block eb;
-    Error_init(&eb);
-    compFilterAccess = GateMutex_create(NULL, &eb);
 }
 
 
@@ -317,6 +316,7 @@ int main(void)
     Init_tasks();
     comm_uart_init();
     communication_uart_init();
+    communication_bt_init();
 
     /* Turn on user LED */
     GPIO_write(Board_LED0, Board_LED_ON);
