@@ -32,6 +32,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 /* XDCtools Header files */
 #include <xdc/std.h>
@@ -43,6 +44,7 @@
 #include <ti/sysbios/BIOS.h>
 #include <ti/sysbios/knl/Task.h>
 #include <ti/sysbios/knl/Clock.h>
+#include <ti/sysbios/gates/GateMutex.h>
 
 /* TI-RTOS Header files */
 #include <ti/drivers/GPIO.h>
@@ -59,6 +61,8 @@
 #include <sensorlib/ak8975.h>
 #include <sensorlib/mpu9150.h>
 
+#include <driverlib/adc.h>
+
 
 /* Board Header files */
 #include "Board.h"
@@ -67,6 +71,7 @@
 
 #include "IMU/MPU9150.h"
 #include "IMU/six_axis_comp_filter.h"
+#include "IMU/kalman.h"
 
 #include "vesc_uart/comm_uart.h"
 #include "vesc_uart/bldc_interface.h"
@@ -84,16 +89,20 @@ uint8_t task1Stack[DATALOG_STACK];
 Task_Struct task2Struct;
 uint8_t task2Stack[PWMCTRL_STACK];
 
-
 static MPU9150_Handle mpu;
-static SixAxis compFilter;
+Kalman kalmanRoll, kalmanPitch;
 
+uint32_t GetADC() {
+    uint32_t ret;
+    ADCProcessorTrigger(ADC0_BASE, 0);
 
-void gpioMPU9150DataReady(unsigned int index) {
-    GPIO_clearInt(MPU9150_INT_PIN);
-    Semaphore_post(imuDataReady);
+    while(!ADCIntStatus(ADC0_BASE, 0, false));
 
+    ADCSequenceDataGet(ADC0_BASE, 0, &ret);
+
+    return ret;
 }
+
 
 Void imuProc(UArg arg0, UArg arg1)
 {
@@ -105,7 +114,8 @@ Void imuProc(UArg arg0, UArg arg1)
     }
     Task_sleep(100); //Wait for IMU to be ready
 
-    CompInit(&compFilter, 0.05f, 2.0f);
+    Kalman_init(&kalmanRoll);
+    Kalman_init(&kalmanPitch);
 
     //Sample once
     if(!MPU9150_read(mpu)) {
@@ -115,11 +125,16 @@ Void imuProc(UArg arg0, UArg arg1)
 
     MPU9150_getAccelFloat(mpu, &accel);
 
-    CompAccelUpdate(&compFilter, accel.xFloat, accel.yFloat, accel.zFloat);
-    CompStart(&compFilter);
+    float roll = atan2f(accel.yFloat, accel.zFloat);
+    roll = CompRadiansToDegrees(roll);
+    float pitch = atanf(-accel.xFloat / sqrtf(accel.yFloat * accel.yFloat + accel.zFloat * accel.zFloat));
+    pitch = CompRadiansToDegrees(pitch);
+    Kalman_setAngle(&kalmanRoll, roll);
+    Kalman_setAngle(&kalmanPitch, pitch);
 
+    float prevRoll;
     for (;;) {
-        Task_sleep(50);
+        Task_sleep(25);
         //Semaphore_pend(imuDataReady, BIOS_WAIT_FOREVER);
         if(!MPU9150_read(mpu)) {
             GPIO_write(Board_LED2, Board_LED_ON);
@@ -129,9 +144,26 @@ Void imuProc(UArg arg0, UArg arg1)
         MPU9150_getGyroFloat(mpu, &gyro);
         MPU9150_getAccelFloat(mpu, &accel);
 
-        CompGyroUpdate(&compFilter, gyro.xFloat, gyro.yFloat, gyro.zFloat);
-        CompAccelUpdate(&compFilter, accel.xFloat, accel.yFloat, accel.zFloat);
-        CompUpdate(&compFilter);
+        //Kalman
+        float roll = atan2f(accel.yFloat, accel.zFloat);
+        roll = RadiansToDegrees(roll);
+        float pitch = atanf(-accel.xFloat / sqrtf(accel.yFloat * accel.yFloat + accel.zFloat * accel.zFloat));
+        pitch = RadiansToDegrees(pitch);
+
+        if((roll < -90.0f && prevRoll > 90.0f) || (roll > 90.0f && prevRoll < -90.0f)) {
+            Kalman_setAngle(&kalmanRoll, roll);
+            prevRoll = roll;
+        } else {
+            float gyroXDeg = RadiansToDegrees(gyro.xFloat);
+            prevRoll = Kalman_updateFilter(&kalmanRoll, roll, gyroXDeg, 0.05f);
+        }
+
+        if(fabs(prevRoll) > 90.0f) {
+            gyro.yFloat = -gyro.yFloat;
+        }
+
+        float gyroYDeg = RadiansToDegrees(gyro.yFloat);
+        Kalman_updateFilter(&kalmanPitch, pitch, gyroYDeg, 0.05f);
     }
 }
 
@@ -146,79 +178,36 @@ Void printFxn(UArg arg0, UArg arg1) {
 
     uint32_t startTick, endTick;
 
-    /*SDSPI_Handle sdspiHandle;
-    SDSPI_Params sdspiParams;
-    FIL src;
-
-    SDSPI_Params_init(&sdspiParams);
-    sdspiHandle = SDSPI_open(Board_SDSPI0, 0, &sdspiParams);
-    if (sdspiHandle == NULL) {
-        System_abort("Error starting the SD card\n");
-    }
-    else {
-        System_printf("Drive 0 is mounted\n");
-    }
-
-    uint32_t fileNum = 0;
-    char outputfile[16];
-    FRESULT res;
-    do { //Try to open a file on the SD card
-        sprintf(outputfile, "0:log_%u.csv", fileNum++);
-        res = f_open(&src, outputfile, FA_CREATE_NEW | FA_WRITE);
-
-        if(res == FR_NOT_READY) {
-            GPIO_write(Board_LED2, Board_LED_ON);
-            System_abort("SD Card reported not ready, try reseating card");
-        }
-    }while(res != FR_OK);
-
-    System_printf("Successfully opened log file: %s\n", outputfile);
-    System_flush();
-    const char csvStr[] = "accel_x,accel_y,accel_z,gyro_x,gyro_y,gyro_z,roll,rpm,tachometer\n";
-    f_write(&src, csvStr, strlen(csvStr), NULL);*/
-
-
     Task_sleep(5000);
 
     //char logStr[128];
     float roll, rollOffset;
-
-
-    CompAnglesGet(&compFilter, NULL, &rollOffset); //Offset
     GPIO_write(Board_LED0, Board_LED_OFF);
     GPIO_write(Board_LED1, Board_LED_ON);
-    uint32_t i;
-    for(i = 0;; i++) {
+
+    rollOffset = Kalman_getAngle(&kalmanRoll);
+
+    int32_t startTimer = Clock_getTicks();
+
+    for(;;) {
         startTick = Clock_getTicks();
 
         MPU9150_getGyroFloat(mpu, &gyro);
         MPU9150_getAccelFloat(mpu, &accel);
-
-        CompAnglesGet(&compFilter, NULL, &roll);
-        roll -= rollOffset;
-        roll = CompRadiansToDegrees(roll);
-        if(roll >= 180.0f) {
-            roll -= 360.0f;
-        }
 
         vescMboxRes = Mailbox_pend(vescTelemetry, &vescFeedback, BIOS_NO_WAIT);
         if(vescMboxRes) {
             vescFeedback.rpm *= (1.0f / 7.0f);
         }
 
+        uint32_t adc = GetADC();
 
-        /*length = sprintf(logStr, "%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%d\n",
-                         accel.xFloat, accel.yFloat, accel.zFloat,
-                         gyro.xFloat, gyro.yFloat, gyro.zFloat, roll,
-                         vescFeedback.rpm, vescFeedback.tachometer);
+        roll = Kalman_getAngle(&kalmanRoll);
+        roll -= rollOffset;
 
-        //f_write(&src, logStr, length, &bytesWritten);
-        //f_sync(&src);
-
-        //System_printf("%s", logStr);
-        //System_flush();*/
-
-        test.reartrack_pos += 1;
+        float steer_deg = map_float((float)adc, 0.0f, 4096.0f, 0.0f, 360.0f);
+        test.reartrack_duty = steer_deg;
+        test.reartrack_pos = (uint16_t)adc;
         test.vehicle_roll = roll;
         test.vehicle_speed = vescFeedback.rpm;
         test.accel = accel;
@@ -227,8 +216,32 @@ Void printFxn(UArg arg0, UArg arg1) {
         //bldc_interface_set_rpm_true(VESC_UART_DRIVE, 1);
         bldc_interface_get_values(VESC_UART_DRIVE);
 
-        float duty = map((float)remVal, (float)INT16_MIN, (float)INT16_MAX, -1.0f, 1.0f);
+        /*int32_t currentTime = Clock_getTicks();
+        int rpm;
+        if(30000 - currentTime - startTimer < 0) {
+            if(31000 - currentTime - startTimer > 0) {
+                rpm = -1500;
+                test.flags = 1;
 
+            } else {
+                rpm = 0;
+                test.flags = 0;
+                if(31500 - currentTime - startTimer > 0) {
+                    test.flags = 1;
+                }
+            }
+
+        } else if(29500 - currentTime - startTimer < 0) {
+            test.flags = 1;
+        }
+
+        else {
+            rpm = 0;
+            test.flags = 0;
+        }*/
+
+        int rpm = map_int(remVal, INT16_MIN, INT16_MAX, -1000, 1000);
+        bldc_interface_set_rpm(VESC_UART_DRIVE, rpm);
         //bldc_interface_set_duty_cycle(VESC_UART_DRIVE, duty);
         //System_printf("%d %f\n", remVal, duty);
         //System_flush();
@@ -290,11 +303,11 @@ void Init_tasks()
     dataLogging.priority = DATALOG_PRIORITY;
     Task_construct(&task1Struct, (Task_FuncPtr)printFxn, &dataLogging, NULL);
 
-    Task_Params_init(&pwmTask);
+    /*Task_Params_init(&pwmTask);
     pwmTask.stackSize = PWMCTRL_STACK;
     pwmTask.stack = &task2Stack;
     pwmTask.priority = PWMCTRL_PRIORITY;
-    Task_construct(&task2Struct, (Task_FuncPtr)pwmCtrlFxn, &pwmTask, NULL);
+    Task_construct(&task2Struct, (Task_FuncPtr)pwmCtrlFxn, &pwmTask, NULL);*/
 }
 
 
@@ -309,19 +322,17 @@ int main(void)
     Board_initGPIO();
     //Board_initSDSPI();
     Board_initI2C();
-    Board_initPWM();
+    //Board_initPWM();
     Board_initUART();
+    Board_initADC();
 
 
     Init_tasks();
     comm_uart_init();
     communication_uart_init();
-    communication_bt_init();
 
     /* Turn on user LED */
     GPIO_write(Board_LED0, Board_LED_ON);
-    GPIO_setCallback(MPU9150_INT_PIN, gpioMPU9150DataReady);
-    GPIO_enableInt(MPU9150_INT_PIN);
 
     //USBCDCD_init();
 

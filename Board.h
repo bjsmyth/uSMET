@@ -39,6 +39,7 @@ extern "C" {
 
 #include "EK_TM4C123GXL.h"
 
+#define Board_initADC               EK_TM4C123GXL_initADC
 #define Board_initDMA               EK_TM4C123GXL_initDMA
 #define Board_initGeneral           EK_TM4C123GXL_initGeneral
 #define Board_initGPIO              EK_TM4C123GXL_initGPIO

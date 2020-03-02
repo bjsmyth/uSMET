@@ -134,7 +134,7 @@ MPU9150_Handle MPU9150_init(unsigned int mpu9105Index,
        	 * Set sample rate to 50 hertz.  1000 hz / (1 + 19)
        	 */
        	writeBuffer[0] = MPU9150_O_SMPLRT_DIV;
-       	writeBuffer[1] = 19;
+       	writeBuffer[1] = 9;
        	i2cTransaction.writeCount = 2;
     	i2cTransaction.readCount = 0;
        	if (!I2C_transfer(handle->i2c, &i2cTransaction)) {

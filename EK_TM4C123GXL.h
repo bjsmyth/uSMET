@@ -60,7 +60,6 @@ extern "C" {
 typedef enum EK_TM4C123GXL_GPIOName {
     EK_TM4C123GXL_SW1 = 0,
     EK_TM4C123GXL_SW2,
-    MPU9150_INT_PIN,
     EK_TM4C123GXL_LED_RED,
     EK_TM4C123GXL_LED_BLUE,
     EK_TM4C123GXL_LED_GREEN,
@@ -142,6 +141,8 @@ typedef enum EK_TM4C123GXL_WiFiName {
 
     EK_TM4C123GXL_WIFICOUNT
 } EK_TM4C123GXL_WiFiName;
+
+extern void EK_TM4C123GXL_initADC(void);
 
 /*!
  *  @brief  Initialize board specific DMA settings

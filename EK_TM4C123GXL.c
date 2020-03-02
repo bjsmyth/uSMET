@@ -50,6 +50,7 @@
 #include <inc/hw_gpio.h>
 
 #include <driverlib/gpio.h>
+#include <driverlib/adc.h>
 #include <driverlib/i2c.h>
 #include <driverlib/pin_map.h>
 #include <driverlib/pwm.h>
@@ -67,6 +68,21 @@
 #ifndef TI_DRIVERS_UART_DMA
 #define TI_DRIVERS_UART_DMA 1
 #endif
+
+/*
+ *  =============================== ADC ===============================
+ */
+void EK_TM4C123GXL_initADC(void)
+{
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_ADC0);
+    while(!SysCtlPeripheralReady(SYSCTL_PERIPH_ADC0));
+
+    GPIOPinTypeADC(GPIO_PORTE_BASE, GPIO_PIN_3);
+
+    ADCSequenceConfigure(ADC0_BASE, 0, ADC_TRIGGER_PROCESSOR, 0);
+    ADCSequenceStepConfigure(ADC0_BASE, 0, 0, ADC_CTL_IE | ADC_CTL_END | ADC_CTL_CH0);
+    ADCSequenceEnable(ADC0_BASE, 0);
+}
 
 /*
  *  =============================== DMA ===============================
@@ -161,8 +177,6 @@ GPIO_PinConfig gpioPinConfigs[] = {
     GPIOTiva_PF_4 | GPIO_CFG_IN_PU | GPIO_CFG_IN_INT_RISING,
     /* EK_TM4C123GXL_GPIO_SW2 */
     GPIOTiva_PF_0 | GPIO_CFG_IN_PU | GPIO_CFG_IN_INT_RISING,
-    /* MPU9150_INT_PIN */
-    GPIOTiva_PE_3 | GPIO_CFG_IN_INT_FALLING,
 
     /* Output pins */
     /* EK_TM4C123GXL_LED_RED */
