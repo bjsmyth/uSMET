@@ -18,36 +18,27 @@
 static UART_Handle comm_uart;
 
 
-communication_status communication_uart_decode(uint8_t *packt, uint32_t len, packet *p)
+communication_status communication_uart_decode(uint8_t *packt, uint32_t len, tx_packet *p)
 {
     if(*packt != CTS_BYTE) {
         return FAILURE;
     }
-    packet tmp;
-    int32_t idx = 0;
-
-    tmp.steering_pos = buffer_get_uint16(packt, &idx);
-    tmp.reartrack_pos = buffer_get_uint16(packt, &idx);
-    tmp.reartrack_duty = buffer_get_float32(packt, SIG_FIG, &idx);
-    tmp.vehicle_speed = buffer_get_float32(packt, SIG_FIG, &idx);
-    tmp.vehicle_roll = buffer_get_float32(packt, SIG_FIG, &idx);
-
-    memcpy(p, &tmp, sizeof(packet));
 
     return SUCCESS;
 }
 
-int16_t communication_uart_send(packet p)
+rx_packet communication_uart_send(tx_packet p)
 {
     static uint8_t buffer[256];
     uint8_t readVar;
-    int16_t testRet;
+    rx_packet ret = { 0 };
     int readReturn, timeout;
     int32_t len = 0;
     buffer[len++] = CTS_BYTE;
     buffer[len++] = p.flags;
     //buffer_append_uint16(buffer, CTS_BYTE, &len);
-    buffer_append_uint16(buffer, p.steering_pos, &len);
+    buffer_append_float32_true(buffer, p.steering_current_pos, &len);
+    buffer_append_int32(buffer, p.steering_motor_rpm, &len);
     buffer_append_uint16(buffer, p.reartrack_pos, &len);
     buffer_append_float32_true(buffer, p.reartrack_duty, &len);
     buffer_append_float32_true(buffer, p.vehicle_speed, &len);
@@ -65,24 +56,26 @@ int16_t communication_uart_send(packet p)
         UART_write(comm_uart, &len, 1);
         readReturn = UART_read(comm_uart, &readVar, 1);
         if((++timeout) == 5) {
-            return 0;
+            return ret;
         }
     }while(readReturn == 0);
 
     UART_write(comm_uart, buffer, len); //Blocks with semaphore until write complete
     UART_read(comm_uart, buffer, 1);
     UART_write(comm_uart, buffer, 1);
-    UART_read(comm_uart, buffer, 4);
+    UART_read(comm_uart, buffer, 14);
     len = 0;
-    uint16_t crc = crc16(buffer, 4);
+    uint16_t crc = crc16(buffer, 14);
 
     if(crc != 0) {
-        return 0;
+        return ret;
     }
 
-    testRet = buffer_get_int16(buffer, &len);
+    ret.steering_set_pos = buffer_get_float32_true(buffer, &len);
+    ret.vehicle_set_speed = buffer_get_float32_true(buffer, &len);
+    ret.reartrack_set_angle = buffer_get_float32_true(buffer, &len);
 
-    return testRet;
+    return ret;
 }
 
 void communication_uart_init()
@@ -95,7 +88,7 @@ void communication_uart_init()
     uartParams.readDataMode = UART_DATA_BINARY;
     uartParams.readReturnMode = UART_RETURN_FULL;
     uartParams.readMode = UART_MODE_BLOCKING;
-    uartParams.readTimeout = 10;
+    uartParams.readTimeout = 50;
     uartParams.writeMode = UART_MODE_BLOCKING;
     uartParams.readEcho = UART_ECHO_OFF;
     uartParams.baudRate = COMMUNICATION_UART_BAUD;

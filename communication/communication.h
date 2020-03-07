@@ -21,21 +21,27 @@ typedef enum {
 
 typedef struct {
     uint8_t flags;
-    uint16_t steering_pos;
+    float steering_current_pos;
+    int32_t steering_motor_rpm;
     uint16_t reartrack_pos;
     float reartrack_duty;
     float vehicle_speed;
     float vehicle_roll;
     MPU9150_Data accel;
     MPU9150_Data gyro;
-} packet;
+} tx_packet;
 
+typedef struct {
+    float steering_set_pos;
+    float vehicle_set_speed;
+    float reartrack_set_angle;
+} rx_packet;
 
 void communication_uart_init();
 
-communication_status communication_uart_decode(uint8_t *packt, uint32_t len, packet *p);
+communication_status communication_uart_decode(uint8_t *packt, uint32_t len, tx_packet *p);
 
-int16_t communication_uart_send(packet p);
+rx_packet communication_uart_send(tx_packet p);
 
 void communication_process();
 

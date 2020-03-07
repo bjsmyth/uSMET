@@ -78,6 +78,7 @@
 #include "vesc_uart/datatypes.h"
 
 #include "communication/communication.h"
+#include "steering/steering.h"
 
 
 Task_Struct task0Struct;
@@ -91,17 +92,6 @@ uint8_t task2Stack[PWMCTRL_STACK];
 
 static MPU9150_Handle mpu;
 Kalman kalmanRoll, kalmanPitch;
-
-uint32_t GetADC() {
-    uint32_t ret;
-    ADCProcessorTrigger(ADC0_BASE, 0);
-
-    while(!ADCIntStatus(ADC0_BASE, 0, false));
-
-    ADCSequenceDataGet(ADC0_BASE, 0, &ret);
-
-    return ret;
-}
 
 
 Void imuProc(UArg arg0, UArg arg1)
@@ -174,11 +164,11 @@ Void printFxn(UArg arg0, UArg arg1) {
 
     MPU9150_Data accel, gyro;
 
-    packet test = { 0 };
-
+    tx_packet txPackt = { 0 };
+    rx_packet rxPackt;
     uint32_t startTick, endTick;
 
-    Task_sleep(5000);
+    Task_sleep(1000);
 
     //char logStr[128];
     float roll, rollOffset;
@@ -200,21 +190,20 @@ Void printFxn(UArg arg0, UArg arg1) {
             vescFeedback.rpm *= (1.0f / 7.0f);
         }
 
-        uint32_t adc = GetADC();
-
         roll = Kalman_getAngle(&kalmanRoll);
         roll -= rollOffset;
 
-        float steer_deg = map_float((float)adc, 0.0f, 4096.0f, 0.0f, 360.0f);
-        test.reartrack_duty = steer_deg;
-        test.reartrack_pos = (uint16_t)adc;
-        test.vehicle_roll = roll;
-        test.vehicle_speed = vescFeedback.rpm;
-        test.accel = accel;
-        test.gyro = gyro;
-        int16_t remVal = communication_uart_send(test);
+        txPackt.steering_current_pos = steer_getCurrentAngle();
+        txPackt.steering_motor_rpm = steer_getControlRpm();
+        txPackt.vehicle_roll = roll;
+        txPackt.vehicle_speed = vescFeedback.rpm;
+        txPackt.accel = accel;
+        txPackt.gyro = gyro;
+        rxPackt = communication_uart_send(txPackt);
+
+        steer_setAngle(rxPackt.steering_set_pos);
         //bldc_interface_set_rpm_true(VESC_UART_DRIVE, 1);
-        bldc_interface_get_values(VESC_UART_DRIVE);
+        bldc_interface_get_values(VESC_UART_STEERING);
 
         /*int32_t currentTime = Clock_getTicks();
         int rpm;
@@ -239,9 +228,6 @@ Void printFxn(UArg arg0, UArg arg1) {
             rpm = 0;
             test.flags = 0;
         }*/
-
-        int rpm = map_int(remVal, INT16_MIN, INT16_MAX, -1000, 1000);
-        bldc_interface_set_rpm(VESC_UART_DRIVE, rpm);
         //bldc_interface_set_duty_cycle(VESC_UART_DRIVE, duty);
         //System_printf("%d %f\n", remVal, duty);
         //System_flush();
@@ -330,7 +316,7 @@ int main(void)
     Init_tasks();
     comm_uart_init();
     communication_uart_init();
-
+    steering_init();
     /* Turn on user LED */
     GPIO_write(Board_LED0, Board_LED_ON);
 

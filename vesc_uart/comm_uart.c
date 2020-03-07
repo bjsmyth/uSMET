@@ -80,7 +80,7 @@ static void uartProcessFxn(UArg arg0, UArg arg1) {
         UART_read(uart, &uartValue, 1);
         Mailbox_pend(uartRxReady, &uartValue, BIOS_WAIT_FOREVER);
 
-        bldc_interface_uart_process_byte(VESC_UART_DRIVE, uartValue);
+        bldc_interface_uart_process_byte(VESC_UART_STEERING, uartValue);
     }
 }
 
@@ -122,7 +122,7 @@ void comm_uart_init(void) {
     Mailbox_construct(&uartRxReadyStct, sizeof(uint8_t), 64, &uartMboxParams, NULL);
     uartRxReady = Mailbox_handle(&uartRxReadyStct);
 
-    bldc_interface_uart_init(VESC_UART_DRIVE, send_packet);
+    bldc_interface_uart_init(VESC_UART_STEERING, send_packet);
     bldc_interface_set_rx_value_func(bldc_val_received);
 
     Task_Params periodicTaskParams, processingTaskParams;

@@ -10,6 +10,13 @@
 
 #include "Board.h"
 
+/* Control Params */
+
+//#define STEERING_INVERT //Define if steering motor spins the wrong way for control loop
+#define STEERING_KP (0.5f)
+#define STEERING_KI (0.1f)
+#define STEERING_RPM_CLAMP (300.0f)
+
 /* Task Stack Sizes */
 #define IMUPROCESS_STACK (512)
 #define DATALOG_STACK (4096)
@@ -30,7 +37,7 @@
 /* UART peripherals */
 
 typedef enum VESC_UARTName {
-    VESC_UART_DRIVE = 0,
+    VESC_UART_STEERING = 0,
     VESC_UART_COUNT
 } VESC_UARTName;
 #define VESC_UART_DRV Board_UART3
