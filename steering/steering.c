@@ -134,6 +134,14 @@ static void steering_pi_proc()
     int32_t rpm;
     float steer_currentAngle;
 
+    { //Allow ADC to settle
+        int i;
+        for(i = 0; i < 10; i++) {
+            adcVal = steer_GetADC();
+            steer_currentAngle = map_float((float)adcVal, 0.0f, 4096.0f, -180.0f, 180.0f);
+        }
+    }
+
     uint32_t startTick, endTick;
     Task_sleep(1000);
     for(;;) {
@@ -141,7 +149,7 @@ static void steering_pi_proc()
 
         adcVal = steer_GetADC();
 
-        steer_currentAngle = map_float((float)adcVal, 0.0f, 4096.0f, 180.0f, -180.0f);
+        steer_currentAngle = map_float((float)adcVal, 0.0f, 4096.0f, -180.0f, 180.0f);
         steer_setCurrentAngle(steer_currentAngle);
 
         rpm = pi_controller_rpm(steer_currentAngle);

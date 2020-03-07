@@ -12,10 +12,10 @@
 
 /* Control Params */
 
-//#define STEERING_INVERT //Define if steering motor spins the wrong way for control loop
-#define STEERING_KP (0.5f)
-#define STEERING_KI (0.1f)
-#define STEERING_RPM_CLAMP (300.0f)
+#define STEERING_INVERT //Define if steering motor spins the wrong way for control loop
+#define STEERING_KP (28.0f)
+#define STEERING_KI (4.4f)
+#define STEERING_RPM_CLAMP (2500.0f)
 
 /* Task Stack Sizes */
 #define IMUPROCESS_STACK (512)
