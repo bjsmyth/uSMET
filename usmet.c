@@ -233,7 +233,7 @@ Void printFxn(UArg arg0, UArg arg1) {
         //System_flush();
 
         endTick = Clock_getTicks();
-        int sleepTime = 50 - (endTick - startTick);
+        int sleepTime = 67 - (endTick - startTick);
         if(sleepTime < 0) {
             sleepTime = 0;
         }
