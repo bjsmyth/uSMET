@@ -10,9 +10,6 @@
 
 #include <stdint.h>
 
-#define STEERING_PRIO (15)
-#define STEERING_STACK (512)
-
 #define STEERING_DT (50)
 
 void steer_setAngle(float angle);

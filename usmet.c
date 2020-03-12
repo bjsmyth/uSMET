@@ -87,9 +87,6 @@ uint8_t task0Stack[IMUPROCESS_STACK];
 Task_Struct task1Struct;
 uint8_t task1Stack[DATALOG_STACK];
 
-Task_Struct task2Struct;
-uint8_t task2Stack[PWMCTRL_STACK];
-
 static MPU9150_Handle mpu;
 Kalman kalmanRoll, kalmanPitch;
 
@@ -168,7 +165,7 @@ Void printFxn(UArg arg0, UArg arg1) {
     rx_packet rxPackt;
     uint32_t startTick, endTick;
 
-    Task_sleep(1000);
+    Task_sleep(4000);
 
     //char logStr[128];
     float roll, rollOffset;
@@ -184,6 +181,10 @@ Void printFxn(UArg arg0, UArg arg1) {
 
         MPU9150_getGyroFloat(mpu, &gyro);
         MPU9150_getAccelFloat(mpu, &accel);
+
+        gyro.xFloat = RadiansToDegrees(gyro.xFloat);
+        gyro.yFloat = RadiansToDegrees(gyro.yFloat);
+        gyro.zFloat = RadiansToDegrees(gyro.zFloat);
 
         vescMboxRes = Mailbox_pend(vescTelemetry, &vescFeedback, BIOS_NO_WAIT);
         if(vescMboxRes) {
@@ -233,7 +234,7 @@ Void printFxn(UArg arg0, UArg arg1) {
         //System_flush();
 
         endTick = Clock_getTicks();
-        int sleepTime = 67 - (endTick - startTick);
+        int sleepTime = 50 - (endTick - startTick);
         if(sleepTime < 0) {
             sleepTime = 0;
         }
@@ -241,41 +242,9 @@ Void printFxn(UArg arg0, UArg arg1) {
     }
 }
 
-void pwmCtrlFxn(UArg arg0, UArg arg1)
-{
-    PWM_Handle pwm1;
-    PWM_Params params;
-    uint16_t   pwmPeriod = 50000;      // Period and duty in microseconds
-    uint16_t   duty = 1500;
-    int16_t   dutyInc = 5;
-
-    PWM_Params_init(&params);
-    params.period = pwmPeriod;
-    pwm1 = PWM_open(Board_PWM0, &params);
-    if (pwm1 == NULL) {
-        System_abort("Board_PWM0 did not open");
-    }
-
-    /* Loop forever incrementing the PWM duty */
-    while (1) {
-        if(duty == 1500) {
-            //Task_sleep(2500);
-        }
-        PWM_setDuty(pwm1, duty);
-
-        duty += dutyInc;
-        if (duty == 2000 || duty == 1000) {
-            dutyInc = - dutyInc;
-            //Task_sleep(10000);
-        }
-
-        Task_sleep(100);
-    }
-}
-
 void Init_tasks()
 {
-    Task_Params taskParams, dataLogging, pwmTask;
+    Task_Params taskParams, dataLogging;
     /* Construct MPU9150 Task thread */
     Task_Params_init(&taskParams);
     taskParams.stackSize = IMUPROCESS_STACK;
@@ -288,12 +257,6 @@ void Init_tasks()
     dataLogging.stack = &task1Stack;
     dataLogging.priority = DATALOG_PRIORITY;
     Task_construct(&task1Struct, (Task_FuncPtr)printFxn, &dataLogging, NULL);
-
-    /*Task_Params_init(&pwmTask);
-    pwmTask.stackSize = PWMCTRL_STACK;
-    pwmTask.stack = &task2Stack;
-    pwmTask.priority = PWMCTRL_PRIORITY;
-    Task_construct(&task2Struct, (Task_FuncPtr)pwmCtrlFxn, &pwmTask, NULL);*/
 }
 
 

@@ -40,6 +40,13 @@ static struct {
 
 void steer_setAngle(float angle)
 {
+    //Clamp input
+    if(angle > STEERING_INPUT_ANGLE_CLAMP) {
+        angle = STEERING_INPUT_ANGLE_CLAMP;
+    } else if(angle < -STEERING_INPUT_ANGLE_CLAMP) {
+        angle = -STEERING_INPUT_ANGLE_CLAMP;
+    }
+
     uint32_t key = GateMutex_enter(steer_set.dataAccess);
 
     steer_set.set_steerAngle = angle;
@@ -102,14 +109,21 @@ static uint32_t steer_GetADC()
     return ret;
 }
 
+static inline float steer_mapADCAngle(uint32_t adc)
+{
+    return map_float((float)adc, 0.0f, 4096.0f, \
+                     -STEERING_ANGLE_SENSE_RANGE * 0.5f, STEERING_ANGLE_SENSE_RANGE * 0.5f);
+}
+
 static int32_t pi_controller_rpm(float currentAngle)
 {
     static float prevError = 0, output = 0;
-    int32_t ret;
 
     float currError = steer_getSetAngle() - currentAngle;
 
-    output = output + (STEERING_KP + STEERING_KI * (STEERING_DT * 0.001f)) * currError
+    currError = fabs(currError) < 1.0f ? 0 : currError;
+
+    output += (STEERING_KP + STEERING_KI * (STEERING_DT * 0.001f)) * currError
              - STEERING_KP * prevError;
 
     prevError = currError;
@@ -118,14 +132,11 @@ static int32_t pi_controller_rpm(float currentAngle)
     output = output > STEERING_RPM_CLAMP ? STEERING_RPM_CLAMP : output;
     output = output < -STEERING_RPM_CLAMP ? -STEERING_RPM_CLAMP : output;
 
-    output = roundf(output);
-
 #ifdef STEERING_INVERT
-    ret = (int32_t)-output;
+    return (int32_t)-output;
 #else
-    ret = (int32_t)output;
+    return (int32_t)output;
 #endif
-    return ret;
 }
 
 static void steering_pi_proc()
@@ -138,7 +149,7 @@ static void steering_pi_proc()
         int i;
         for(i = 0; i < 10; i++) {
             adcVal = steer_GetADC();
-            steer_currentAngle = map_float((float)adcVal, 0.0f, 4096.0f, -180.0f, 180.0f);
+            steer_currentAngle = steer_mapADCAngle(adcVal);
         }
     }
 
@@ -149,7 +160,7 @@ static void steering_pi_proc()
 
         adcVal = steer_GetADC();
 
-        steer_currentAngle = map_float((float)adcVal, 0.0f, 4096.0f, -180.0f, 180.0f);
+        steer_currentAngle = steer_mapADCAngle(adcVal);
         steer_setCurrentAngle(steer_currentAngle);
 
         rpm = pi_controller_rpm(steer_currentAngle);
@@ -175,7 +186,7 @@ void steering_init()
     Task_Params_init(&steeringParams);
     steeringParams.stackSize = STEERING_STACK;
     steeringParams.stack = &steering_pi_task_stack;
-    steeringParams.priority = STEERING_PRIO;
+    steeringParams.priority = STEERING_PRIORITY;
     Task_construct(&steering_pi_task_struct, (Task_FuncPtr)steering_pi_proc, &steeringParams, NULL);
 
     Error_Block eb;

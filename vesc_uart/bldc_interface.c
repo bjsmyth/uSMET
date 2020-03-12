@@ -28,9 +28,10 @@
 #include "buffer.h"
 #include <string.h>
 #include "config.h"
+#include "packet.h"
 
 // Private variables
-static unsigned char send_buffer[VESC_UART_COUNT][512];
+static unsigned char send_buffer[VESC_UART_COUNT][PACKET_MAX_PL_LEN];
 
 // Private variables for received data
 static mc_values values[VESC_UART_COUNT];

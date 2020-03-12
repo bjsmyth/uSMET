@@ -13,21 +13,24 @@
 /* Control Params */
 
 #define STEERING_INVERT //Define if steering motor spins the wrong way for control loop
-#define STEERING_KP (28.0f)
-#define STEERING_KI (4.4f)
-#define STEERING_RPM_CLAMP (2500.0f)
+#define STEERING_KP (48.0f)
+#define STEERING_KI (20.4f)
+#define STEERING_ANGLE_SENSE_RANGE (250.0f) //Degrees
+#define STEERING_INPUT_ANGLE_CLAMP (90.0f) //Degrees
+#define STEERING_RPM_CLAMP (6000.0f)
 
 /* Task Stack Sizes */
 #define IMUPROCESS_STACK (512)
 #define DATALOG_STACK (4096)
-#define PWMCTRL_STACK (512)
-#define FLUSH_STACK (512)
 
 #define VESCPROCESS_STACK (1024)
 #define VESCTIMEOUT_STACK (512)
 
+#define STEERING_STACK (512)
+
 /* Task Priority (Higher Number == Higher Priority) */
-#define IMUPROCESS_PRIORITY (15)
+#define IMUPROCESS_PRIORITY (14)
+#define STEERING_PRIORITY (15)
 #define DATALOG_PRIORITY (5)
 #define PWMCTRL_PRIORITY (3)
 
@@ -38,14 +41,15 @@
 
 typedef enum VESC_UARTName {
     VESC_UART_STEERING = 0,
+    VESC_UART_REARTRACK,
+    VESC_UART_THROTTLE_REARLEFT,
+    VESC_UART_THROTTLE_REARRIGHT,
+    VESC_UART_THROTTLE_FRONT,
     VESC_UART_COUNT
 } VESC_UARTName;
-#define VESC_UART_DRV Board_UART3
+#define VESC_UART_STEERING_DRV Board_UART3
 
 #define COMMUNICATION_UART Board_UART0
 #define COMMUNICATION_UART_BAUD (1000000)
-
-#define BLUETOOTH_UART Board_UART7
-#define BLUETOOTH_UART_BAUD (115200)
 
 #endif /* CONFIG_H_ */

@@ -31,7 +31,7 @@
 // Settings
 #define PACKET_RX_TIMEOUT		2
 #define PACKET_HANDLERS			VESC_UART_COUNT
-#define PACKET_MAX_PL_LEN		512
+#define PACKET_MAX_PL_LEN		128
 
 // Functions
 void packet_init(void (*s_func)(unsigned int uart_index, unsigned char *data, unsigned int len),

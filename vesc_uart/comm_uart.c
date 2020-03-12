@@ -115,7 +115,7 @@ void comm_uart_init(void) {
     uartParams.writeMode = UART_MODE_BLOCKING;
     uartParams.readEcho = UART_ECHO_OFF;
     uartParams.baudRate = 115200;
-    uart = UART_open(VESC_UART_DRV, &uartParams);
+    uart = UART_open(VESC_UART_STEERING_DRV, &uartParams);
 
     Mailbox_Params uartMboxParams;
     Mailbox_Params_init(&uartMboxParams);

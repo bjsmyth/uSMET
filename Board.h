@@ -84,11 +84,6 @@ extern "C" {
 #define Board_WIFI                  EK_TM4C123GXL_WIFI
 #define Board_WIFI_SPI              EK_TM4C123GXL_SPI2
 
-/* Board specific I2C addresses */
-#define Board_TMP006_ADDR           (0x40)
-#define Board_RF430CL330_ADDR       (0x28)
-#define Board_TPL0401_ADDR          (0x40)
-
 #ifdef __cplusplus
 }
 #endif
