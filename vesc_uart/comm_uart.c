@@ -42,11 +42,18 @@
 #include <ti/drivers/UART.h>
 #include <string.h>
 
-static UART_Handle uart;
+static UART_Handle steering_uart, reartrack_uart;
 static Mailbox_Handle uartRxReady;
 static Mailbox_Struct uartRxReadyStct;
 
 // Settings
+
+typedef struct uart_data {
+    uint8_t data;
+    VESC_UARTName uartName;
+} uart_data;
+
+static uint8_t tmpBuff[16];
 
 // Private functions
 static void send_packet(unsigned int uart_index, unsigned char *data, unsigned int len);
@@ -62,8 +69,20 @@ static void uartCallbackFxn(UART_Handle handle, void *buf, size_t count)
 {
     unsigned char *buffer = buf;
     unsigned int i;
+    uart_data data;
     for(i = 0; i < count; i++) {
-        Mailbox_post(uartRxReady, &buffer[i], BIOS_NO_WAIT);
+        if(handle == steering_uart) {
+            data.uartName = VESC_UART_STEERING;
+            data.data = buffer[i];
+            Mailbox_post(uartRxReady, &data, BIOS_NO_WAIT);
+            UART_read(handle, &tmpBuff[0], 1);
+        } else if(handle == reartrack_uart) {
+            data.uartName = VESC_UART_REARTRACK;
+            data.data = buffer[i];
+            Mailbox_post(uartRxReady, &data, BIOS_NO_WAIT);
+            UART_read(handle, &tmpBuff[1], 1);
+        }
+
     }
 }
 
@@ -75,12 +94,14 @@ static void periodicUpdate(UArg arg0, UArg arg1) {
 }
 
 static void uartProcessFxn(UArg arg0, UArg arg1) {
-    uint8_t uartValue;
-    for(;;) {
-        UART_read(uart, &uartValue, 1);
-        Mailbox_pend(uartRxReady, &uartValue, BIOS_WAIT_FOREVER);
+    uart_data newData;
 
-        bldc_interface_uart_process_byte(VESC_UART_STEERING, uartValue);
+    UART_read(steering_uart, &tmpBuff[0], 1);
+    UART_read(reartrack_uart, &tmpBuff[0], 1);
+    for(;;) {
+        Mailbox_pend(uartRxReady, &newData, BIOS_WAIT_FOREVER);
+
+        bldc_interface_uart_process_byte(newData.uartName, newData.data);
     }
 }
 
@@ -94,12 +115,26 @@ static void send_packet(unsigned int uart_index, unsigned char *data, unsigned i
 	static uint8_t buffer[PACKET_MAX_PL_LEN + 5];
 	memcpy(buffer, data, len);
 
-	UART_write(uart, &buffer, len); //Blocks with semaphore until write complete
+	UART_Handle handle;
+	switch(uart_index) {
+	case VESC_UART_STEERING:
+	    handle = steering_uart;
+	    break;
+	case VESC_UART_REARTRACK:
+	    handle = reartrack_uart;
+	    break;
+	default:
+	    handle = steering_uart;
+	}
+
+	UART_write(handle, &buffer, len); //Blocks with semaphore until write complete
 }
 
 void bldc_val_received(unsigned int uart_index, mc_values *val)
 {
-    Mailbox_post(vescTelemetry, val, BIOS_NO_WAIT);
+    if(uart_index == VESC_UART_STEERING) {
+        Mailbox_post(vescSteeringTelemetry, val, BIOS_NO_WAIT);
+    }
 }
 
 void comm_uart_init(void) {
@@ -115,14 +150,17 @@ void comm_uart_init(void) {
     uartParams.writeMode = UART_MODE_BLOCKING;
     uartParams.readEcho = UART_ECHO_OFF;
     uartParams.baudRate = 115200;
-    uart = UART_open(VESC_UART_STEERING_DRV, &uartParams);
+    steering_uart = UART_open(VESC_UART_STEERING_DRV, &uartParams);
+
+    reartrack_uart = UART_open(VESC_UART_REARTRACK_DRV, &uartParams);
 
     Mailbox_Params uartMboxParams;
     Mailbox_Params_init(&uartMboxParams);
-    Mailbox_construct(&uartRxReadyStct, sizeof(uint8_t), 64, &uartMboxParams, NULL);
+    Mailbox_construct(&uartRxReadyStct, sizeof(uart_data), 16, &uartMboxParams, NULL);
     uartRxReady = Mailbox_handle(&uartRxReadyStct);
 
     bldc_interface_uart_init(VESC_UART_STEERING, send_packet);
+    bldc_interface_uart_init(VESC_UART_REARTRACK, send_packet);
     bldc_interface_set_rx_value_func(bldc_val_received);
 
     Task_Params periodicTaskParams, processingTaskParams;

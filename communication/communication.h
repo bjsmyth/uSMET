@@ -22,7 +22,8 @@ typedef enum {
 typedef struct {
     uint8_t flags;
     float steering_current_pos;
-    int32_t steering_motor_rpm;
+    int32_t steering_motor_set_rpm;
+    float steering_motor_current_rpm;
     uint16_t reartrack_pos;
     float reartrack_duty;
     float vehicle_speed;

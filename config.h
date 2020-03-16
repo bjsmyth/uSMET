@@ -12,8 +12,8 @@
 
 /* Control Params */
 
-#define STEERING_INVERT //Define if steering motor spins the wrong way for control loop
-#define STEERING_KP (48.0f)
+//#define STEERING_INVERT //Define if steering motor spins the wrong way for control loop
+#define STEERING_KP (55.0f)
 #define STEERING_KI (20.4f)
 #define STEERING_ANGLE_SENSE_RANGE (250.0f) //Degrees
 #define STEERING_INPUT_ANGLE_CLAMP (90.0f) //Degrees
@@ -48,6 +48,7 @@ typedef enum VESC_UARTName {
     VESC_UART_COUNT
 } VESC_UARTName;
 #define VESC_UART_STEERING_DRV Board_UART3
+#define VESC_UART_REARTRACK_DRV Board_UART7
 
 #define COMMUNICATION_UART Board_UART0
 #define COMMUNICATION_UART_BAUD (1000000)

@@ -165,7 +165,7 @@ Void printFxn(UArg arg0, UArg arg1) {
     rx_packet rxPackt;
     uint32_t startTick, endTick;
 
-    Task_sleep(4000);
+    Task_sleep(1000);
 
     //char logStr[128];
     float roll, rollOffset;
@@ -186,7 +186,7 @@ Void printFxn(UArg arg0, UArg arg1) {
         gyro.yFloat = RadiansToDegrees(gyro.yFloat);
         gyro.zFloat = RadiansToDegrees(gyro.zFloat);
 
-        vescMboxRes = Mailbox_pend(vescTelemetry, &vescFeedback, BIOS_NO_WAIT);
+        vescMboxRes = Mailbox_pend(vescSteeringTelemetry, &vescFeedback, BIOS_NO_WAIT);
         if(vescMboxRes) {
             vescFeedback.rpm *= (1.0f / 7.0f);
         }
@@ -195,7 +195,8 @@ Void printFxn(UArg arg0, UArg arg1) {
         roll -= rollOffset;
 
         txPackt.steering_current_pos = steer_getCurrentAngle();
-        txPackt.steering_motor_rpm = steer_getControlRpm();
+        txPackt.steering_motor_set_rpm = steer_getControlRpm();
+        txPackt.steering_motor_current_rpm = vescFeedback.rpm;
         txPackt.vehicle_roll = roll;
         txPackt.vehicle_speed = vescFeedback.rpm;
         txPackt.accel = accel;

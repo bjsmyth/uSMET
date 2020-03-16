@@ -38,7 +38,8 @@ rx_packet communication_uart_send(tx_packet p)
     buffer[len++] = p.flags;
     //buffer_append_uint16(buffer, CTS_BYTE, &len);
     buffer_append_float32_true(buffer, p.steering_current_pos, &len);
-    buffer_append_int32(buffer, p.steering_motor_rpm, &len);
+    buffer_append_int32(buffer, p.steering_motor_set_rpm, &len);
+    buffer_append_float32_true(buffer, p.steering_motor_current_rpm, &len);
     buffer_append_uint16(buffer, p.reartrack_pos, &len);
     buffer_append_float32_true(buffer, p.reartrack_duty, &len);
     buffer_append_float32_true(buffer, p.vehicle_speed, &len);
