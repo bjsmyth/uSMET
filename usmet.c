@@ -91,6 +91,9 @@ static MPU9150_Handle mpu;
 Kalman kalmanRoll, kalmanPitch;
 
 
+/*
+ * Periodic task to read IMU and process Kalman filter
+ */
 Void imuProc(UArg arg0, UArg arg1)
 {
     MPU9150_Data accel, gyro;
@@ -101,6 +104,7 @@ Void imuProc(UArg arg0, UArg arg1)
     }
     Task_sleep(100); //Wait for IMU to be ready
 
+    //Init filters
     Kalman_init(&kalmanRoll);
     Kalman_init(&kalmanPitch);
 
@@ -154,7 +158,10 @@ Void imuProc(UArg arg0, UArg arg1)
     }
 }
 
-Void printFxn(UArg arg0, UArg arg1) {
+/*
+ * Communication Task
+ */
+Void commTsk(UArg arg0, UArg arg1) {
 
     bool vescMboxRes;
     mc_values vescFeedback = { 0 };
@@ -179,21 +186,26 @@ Void printFxn(UArg arg0, UArg arg1) {
     for(;;) {
         startTick = Clock_getTicks();
 
+        //Read IMU Data
         MPU9150_getGyroFloat(mpu, &gyro);
         MPU9150_getAccelFloat(mpu, &accel);
 
+        //Convert rads tod egs
         gyro.xFloat = RadiansToDegrees(gyro.xFloat);
         gyro.yFloat = RadiansToDegrees(gyro.yFloat);
         gyro.zFloat = RadiansToDegrees(gyro.zFloat);
 
+        //Check if new ESC data is available
         vescMboxRes = Mailbox_pend(vescSteeringTelemetry, &vescFeedback, BIOS_NO_WAIT);
         if(vescMboxRes) {
-            vescFeedback.rpm *= (1.0f / 7.0f);
+            vescFeedback.rpm *= (1.0f / 7.0f); //Convert eRPM to real RPM (7 poles)
         }
 
+        //Get roll
         roll = Kalman_getAngle(&kalmanRoll);
         roll -= rollOffset;
 
+        //Add data to packet struct
         txPackt.steering_current_pos = steer_getCurrentAngle();
         txPackt.steering_motor_set_rpm = steer_getControlRpm();
         txPackt.steering_motor_current_rpm = vescFeedback.rpm;
@@ -201,39 +213,15 @@ Void printFxn(UArg arg0, UArg arg1) {
         txPackt.vehicle_speed = vescFeedback.rpm;
         txPackt.accel = accel;
         txPackt.gyro = gyro;
-        rxPackt = communication_uart_send(txPackt);
+        rxPackt = communication_uart_send(txPackt); //Pack data, transmit and get received message
 
+        //Set steering angle
         steer_setAngle(rxPackt.steering_set_pos);
-        //bldc_interface_set_rpm_true(VESC_UART_DRIVE, 1);
+
+        //Request new ESC values
         bldc_interface_get_values(VESC_UART_STEERING);
 
-        /*int32_t currentTime = Clock_getTicks();
-        int rpm;
-        if(30000 - currentTime - startTimer < 0) {
-            if(31000 - currentTime - startTimer > 0) {
-                rpm = -1500;
-                test.flags = 1;
-
-            } else {
-                rpm = 0;
-                test.flags = 0;
-                if(31500 - currentTime - startTimer > 0) {
-                    test.flags = 1;
-                }
-            }
-
-        } else if(29500 - currentTime - startTimer < 0) {
-            test.flags = 1;
-        }
-
-        else {
-            rpm = 0;
-            test.flags = 0;
-        }*/
-        //bldc_interface_set_duty_cycle(VESC_UART_DRIVE, duty);
-        //System_printf("%d %f\n", remVal, duty);
-        //System_flush();
-
+        //Calculate new sleep time
         endTick = Clock_getTicks();
         int sleepTime = 50 - (endTick - startTick);
         if(sleepTime < 0) {
@@ -243,6 +231,9 @@ Void printFxn(UArg arg0, UArg arg1) {
     }
 }
 
+/*
+ * Task initialization function
+ */
 void Init_tasks()
 {
     Task_Params taskParams, dataLogging;
@@ -257,7 +248,7 @@ void Init_tasks()
     dataLogging.stackSize = DATALOG_STACK;
     dataLogging.stack = &task1Stack;
     dataLogging.priority = DATALOG_PRIORITY;
-    Task_construct(&task1Struct, (Task_FuncPtr)printFxn, &dataLogging, NULL);
+    Task_construct(&task1Struct, (Task_FuncPtr)commTsk, &dataLogging, NULL);
 }
 
 

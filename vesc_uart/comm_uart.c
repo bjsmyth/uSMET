@@ -105,6 +105,9 @@ static void uartProcessFxn(UArg arg0, UArg arg1) {
     }
 }
 
+/*
+ * Send packet to ESC UART
+ */
 static void send_packet(unsigned int uart_index, unsigned char *data, unsigned int len) {
 	if (len > (PACKET_MAX_PL_LEN + 5)) {
 		return;
@@ -130,6 +133,9 @@ static void send_packet(unsigned int uart_index, unsigned char *data, unsigned i
 	UART_write(handle, &buffer, len); //Blocks with semaphore until write complete
 }
 
+/*
+ * UART received message callback
+ */
 void bldc_val_received(unsigned int uart_index, mc_values *val)
 {
     if(uart_index == VESC_UART_STEERING) {

@@ -17,10 +17,10 @@
 #define STEERING_KI (20.4f)
 #define STEERING_ANGLE_SENSE_RANGE (250.0f) //Degrees
 #define STEERING_INPUT_ANGLE_CLAMP (90.0f) //Degrees
-#define STEERING_RPM_CLAMP (6000.0f)
+#define STEERING_RPM_CLAMP (4000.0f)
 
 /* Task Stack Sizes */
-#define IMUPROCESS_STACK (512)
+#define IMUPROCESS_STACK (1024)
 #define DATALOG_STACK (4096)
 
 #define VESCPROCESS_STACK (1024)

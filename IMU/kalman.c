@@ -10,6 +10,9 @@
 
 #include <xdc/runtime/Error.h>
 
+/*
+ * Kalman filter initialization
+ */
 void Kalman_init(Kalman *filter)
 {
     filter->Q_angle = 0.001f;
@@ -29,6 +32,9 @@ void Kalman_init(Kalman *filter)
     filter->dataAccess = GateMutex_create(NULL, &eb);
 }
 
+/*
+ * Kalman filter update process
+ */
 float Kalman_updateFilter(Kalman *filter, float newAngle, float newRate, float dt)
 {
     uint32_t key = GateMutex_enter(filter->dataAccess);
@@ -72,6 +78,9 @@ float Kalman_updateFilter(Kalman *filter, float newAngle, float newRate, float d
     return ret;
 }
 
+/*
+ * Kalman filter return filtered angle
+ */
 float Kalman_getAngle(Kalman *filter)
 {
     uint32_t key = GateMutex_enter(filter->dataAccess);
@@ -83,6 +92,9 @@ float Kalman_getAngle(Kalman *filter)
     return ret;
 }
 
+/*
+ * Write initial angle to filter
+ */
 void Kalman_setAngle(Kalman *filter, float angle)
 {
     uint32_t key = GateMutex_enter(filter->dataAccess);

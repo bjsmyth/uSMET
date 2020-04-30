@@ -38,6 +38,9 @@ static struct {
     GateMutex_Handle dataAccess;
 } steer_set;
 
+/*
+ * Write new steering angle to global
+ */
 void steer_setAngle(float angle)
 {
     //Clamp input
@@ -54,6 +57,9 @@ void steer_setAngle(float angle)
     GateMutex_leave(steer_set.dataAccess, key);
 }
 
+/*
+ * Return current steering set angle
+ */
 static float steer_getSetAngle()
 {
     float ret;
@@ -66,6 +72,9 @@ static float steer_getSetAngle()
     return ret;
 }
 
+/*
+ * Return real steering angle
+ */
 float steer_getCurrentAngle()
 {
     float ret;
@@ -78,6 +87,9 @@ float steer_getCurrentAngle()
     return ret;
 }
 
+/*
+ * Write real angle to global
+ */
 static void steer_setCurrentAngle(float angle)
 {
     uint32_t key = GateMutex_enter(steer_set.dataAccess);
@@ -87,16 +99,25 @@ static void steer_setCurrentAngle(float angle)
     GateMutex_leave(steer_set.dataAccess, key);
 }
 
+/*
+ * Write control RPM to global
+ */
 static void steer_setControlRpm(int32_t rpm)
 {
     steer_set.rpm = rpm;
 }
 
+/*
+ * Return control RPM to global
+ */
 int32_t steer_getControlRpm()
 {
     return steer_set.rpm;
 }
 
+/*
+ * Read feedback ADC value
+ */
 static uint32_t steer_GetADC()
 {
     uint32_t ret;
@@ -109,12 +130,18 @@ static uint32_t steer_GetADC()
     return ret;
 }
 
+/*
+ * Map ADC value to angle
+ */
 static inline float steer_mapADCAngle(uint32_t adc)
 {
     return map_float((float)adc, 0.0f, 4096.0f, \
                      -STEERING_ANGLE_SENSE_RANGE * 0.5f, STEERING_ANGLE_SENSE_RANGE * 0.5f);
 }
 
+/*
+ * PI control loop for steering
+ */
 static int32_t pi_controller_rpm(float currentAngle)
 {
     static float prevError = 0, output = 0;
@@ -139,6 +166,9 @@ static int32_t pi_controller_rpm(float currentAngle)
 #endif
 }
 
+/*
+ * Periodic process for PI loop
+ */
 static void steering_pi_proc()
 {
     uint32_t adcVal;
@@ -178,7 +208,9 @@ static void steering_pi_proc()
     }
 }
 
-
+/*
+ * Steering initialization
+ */
 void steering_init()
 {
     Task_Params steeringParams;

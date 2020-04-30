@@ -18,6 +18,9 @@
 static UART_Handle comm_uart;
 
 
+/*
+ * Currently unused
+ */
 communication_status communication_uart_decode(uint8_t *packt, uint32_t len, tx_packet *p)
 {
     if(*packt != CTS_BYTE) {
@@ -27,6 +30,9 @@ communication_status communication_uart_decode(uint8_t *packt, uint32_t len, tx_
     return SUCCESS;
 }
 
+/*
+ * Pack transmit packet, send and receive new control messages
+ */
 rx_packet communication_uart_send(tx_packet p)
 {
     static uint8_t buffer[256];
@@ -79,6 +85,9 @@ rx_packet communication_uart_send(tx_packet p)
     return ret;
 }
 
+/*
+ * Comm UART comm init
+ */
 void communication_uart_init()
 {
     UART_Params uartParams;
@@ -89,7 +98,7 @@ void communication_uart_init()
     uartParams.readDataMode = UART_DATA_BINARY;
     uartParams.readReturnMode = UART_RETURN_FULL;
     uartParams.readMode = UART_MODE_BLOCKING;
-    uartParams.readTimeout = 50;
+    uartParams.readTimeout = 40;
     uartParams.writeMode = UART_MODE_BLOCKING;
     uartParams.readEcho = UART_ECHO_OFF;
     uartParams.baudRate = COMMUNICATION_UART_BAUD;
